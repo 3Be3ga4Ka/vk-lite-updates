@@ -28,7 +28,7 @@ def activate(repo,tag):
   if not signers: raise RuntimeError('Android build tools unavailable')
   output=subprocess.check_output([str(signers[-1]),'verify','--verbose','--print-certs',str(apk)],text=True)
   expected='a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc'
-  if f'Signer #1 certificate SHA-256 digest: {expected}' not in output: raise ValueError('Wrong QVK signer')
+  if set(re.findall(r'certificate sha-256 digest:\s*([0-9a-fA-F]{64})', output.lower())) != {expected}: raise ValueError('Wrong QVK signer: ' + repr(re.findall(r'certificate[^\n]*', output)))
   aapt=signers[-1].parent/'aapt'
   badging=subprocess.check_output([str(aapt),'dump','badging',str(apk)],text=True).splitlines()[0]
   if f"name='ru.qmods.qvk'" not in badging or f"versionCode='{item['version_code']}'" not in badging or f"versionName='{item['version_name']}'" not in badging: raise ValueError('APK identity mismatch')
