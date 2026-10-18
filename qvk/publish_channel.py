@@ -31,7 +31,7 @@ def activate(repo,tag):
   if f'Signer #1 certificate SHA-256 digest: {expected}' not in output: raise ValueError('Wrong QVK signer')
   aapt=signers[-1].parent/'aapt'
   badging=subprocess.check_output([str(aapt),'dump','badging',str(apk)],text=True).splitlines()[0]
-  if f"name='ru.qmods.qvk'" not in badging or f"versionCode='{item['version_code']}'" not in badging: raise ValueError('APK identity mismatch')
+  if f"name='ru.qmods.qvk'" not in badging or f"versionCode='{item['version_code']}'" not in badging or f"versionName='{item['version_name']}'" not in badging: raise ValueError('APK identity mismatch')
   path=f'repos/{repo}/contents/qvk/stable.json'
   try: old=json.loads(gh('api',path))
   except subprocess.CalledProcessError: old=None
