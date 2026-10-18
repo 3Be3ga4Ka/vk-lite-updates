@@ -1,5 +1,5 @@
 """GitHub runner upload path when an external CLI identity cannot use uploads.github.com."""
-import hashlib,json,os,re,subprocess,tempfile
+import hashlib,json,os,re,subprocess,tempfile,urllib.request,urllib.parse
 from pathlib import Path
 from publish_channel import activate,gh
 
@@ -28,10 +28,23 @@ def main():
   for attribute,value in [('name','ru.qmods.qvk'),('versionCode',str(item['version_code'])),('versionName',item['version_name'])]:
    if f"{attribute}='{value}'" not in metadata:raise ValueError('APK metadata mismatch')
   manifest=Path(td)/'qvk-update.json';manifest.write_text(json.dumps(item,ensure_ascii=False,indent=2)+'\n')
-  release=json.loads(gh('api',f'repos/{repo}/releases/tags/{tag}'))
+  release_id=data['release_id']
+  if not isinstance(release_id,int) or release_id<=0:raise ValueError('Invalid release ID')
+  release=json.loads(gh('api',f'repos/{repo}/releases/{release_id}'))
+  if release['tag_name']!=tag:raise ValueError('Release tag mismatch')
   if release['draft']:
-   subprocess.run(['gh','release','upload',tag,str(apk),str(manifest),'--repo',repo,'--clobber'],check=True)
-   subprocess.run(['gh','release','edit',tag,'--repo',repo,'--draft=false','--latest=false'],check=True)
+   for asset in release['assets']:
+    if asset['name'] in [name,'qvk-update.json']:
+     subprocess.run(['gh','api','--method','DELETE',f"repos/{repo}/releases/assets/{asset['id']}",'--silent'],check=True)
+   endpoint=release['upload_url'].split('{',1)[0]
+   if endpoint!=f'https://uploads.github.com/repos/{repo}/releases/{release_id}/assets':raise ValueError('Invalid upload endpoint')
+   for file,mime in [(apk,'application/vnd.android.package-archive'),(manifest,'application/json')]:
+    request=urllib.request.Request(endpoint+'?name='+urllib.parse.quote(file.name),data=file.read_bytes(),method='POST',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Content-Type':mime,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+    with urllib.request.urlopen(request,timeout=300) as uploaded:
+     if uploaded.status!=201:raise RuntimeError('Asset upload failed')
+     result=json.load(uploaded)
+     if result['name']!=file.name or result['size']!=file.stat().st_size:raise ValueError('Uploaded asset mismatch')
+   subprocess.run(['gh','api','--method','PATCH',f'repos/{repo}/releases/{release_id}','-F','draft=false','-f','make_latest=false','--silent'],check=True)
   # GITHUB_TOKEN release events do not start another workflow; activate explicitly here.
   activate(repo,tag)
   subprocess.run(['gh','api','--method','DELETE',f'repos/{repo}/git/refs/heads/{ref}','--silent'],check=True)
