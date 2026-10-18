@@ -3,15 +3,15 @@
 Android-клиент VK Lite. Репозиторий предназначен для APK и канала обновлений; исходники пока не публикуются.
 
 - [Скачать последний выпуск](https://github.com/3Be3ga4Ka/vk-lite-updates/releases/latest)
-- [APK 0.17.0](https://github.com/3Be3ga4Ka/vk-lite-updates/releases/download/v0.17.0/VK-Lite-Native-0.17.0.apk)
-- [Канал обновлений stable.json](https://github.com/3Be3ga4Ka/vk-lite-updates/releases/latest/download/stable.json)
+- [APK 0.17.0](https://raw.githubusercontent.com/3Be3ga4Ka/vk-lite-updates/main/releases/0.17.0/VK-Lite-Native-0.17.0.apk)
+- [Канал обновлений stable.json](https://raw.githubusercontent.com/3Be3ga4Ka/vk-lite-updates/main/stable.json)
 
 ## Обновления внутри приложения
 
 В VK Lite 0.17.0 откройте «Настройки → Обновления приложения → Канал обновлений» и укажите:
 
 ```text
-https://github.com/3Be3ga4Ka/vk-lite-updates/releases/latest/download/stable.json
+https://raw.githubusercontent.com/3Be3ga4Ka/vk-lite-updates/main/stable.json
 ```
 
 В уже собранном APK по умолчанию указан qmods.ru. Смена адреса в настройках переключает клиент на опубликованный канал GitHub. Скачивание выполняется внутри клиента; установку подтверждает системный установщик Android.
