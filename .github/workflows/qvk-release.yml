@@ -1,0 +1,27 @@
+name: Publish QVK update and broadcast
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published QVK tag
+        required: true
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: qvk-stable-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'qvk-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify APK and activate update broadcast
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QVK_RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+          QVK_REPOSITORY: ${{ github.repository }}
+        run: python3 qvk/publish_channel.py
