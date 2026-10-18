@@ -26,13 +26,18 @@ def main():
  release_id=next(x['id'] for x in releases if x['tag_name']==tag and x['draft'])
  with tempfile.TemporaryDirectory(prefix='qvk-publish-') as td:
   repo=Path(td)/'repo';run('gh','repo','clone',REPO,repo,'--','--depth','1');run('git','switch','-c',branch,cwd=repo)
-  root=repo/'qvk/incoming';root.mkdir(parents=True,exist_ok=True);parts=[]
+  root=repo/'qvk/staging';root.mkdir(parents=True,exist_ok=True);parts=[]
+  def push_parts(message):
+   run('git','add','qvk',cwd=repo)
+   run('git','-c','user.name=QVK release automation','-c','user.email=qvk-release@users.noreply.github.com','commit','-m',message,cwd=repo)
+   run('git','-c','credential.helper=!gh auth git-credential','-c','core.compression=0','-c','pack.window=0','-c','http.postBuffer=524288000','push','origin',f'HEAD:{branch}',cwd=repo)
   with apk.open('rb') as stream:
-   while chunk:=stream.read(40*1024*1024):
+   while chunk:=stream.read(32*1024*1024):
     name=f'apk.part{len(parts):03}';(root/name).write_bytes(chunk);parts.append(dict(name=name,bytes=len(chunk),sha256=hashlib.sha256(chunk).hexdigest()))
+    push_parts(f'Stage {tag} part {len(parts)}')
+  run('git','mv','qvk/staging','qvk/incoming',cwd=repo)
+  root=repo/'qvk/incoming'
   (root/'manifest.json').write_text(json.dumps(dict(tag=tag,release_id=release_id,update=item,chunks=parts),ensure_ascii=False,indent=2)+'\n')
-  run('git','add','qvk/incoming',cwd=repo)
-  run('git','-c','user.name=QVK release automation','-c','user.email=qvk-release@users.noreply.github.com','commit','-m',f'Stage verified {tag} for automatic publication',cwd=repo)
-  run('git','-c','credential.helper=!gh auth git-credential','push','origin',f'HEAD:{branch}',cwd=repo)
+  push_parts(f'Stage verified {tag} for automatic publication')
  print(f'https://github.com/{REPO}/actions/workflows/qvk-upload.yml')
 if __name__=='__main__':main()
