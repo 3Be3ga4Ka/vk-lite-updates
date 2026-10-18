@@ -1,0 +1,21 @@
+name: Upload and publish signed QVK build
+on:
+  push:
+    branches: ['qvk-upload-*']
+    paths: ['qvk/incoming/**']
+permissions:
+  contents: write
+concurrency:
+  group: qvk-publish-and-broadcast
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore, verify, publish and activate broadcast
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QVK_REPOSITORY: ${{ github.repository }}
+          QVK_STAGING_REF: ${{ github.ref_name }}
+        run: python3 qvk/publish_from_chunks.py
