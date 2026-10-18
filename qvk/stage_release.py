@@ -22,13 +22,15 @@ def main():
  if existing.returncode==0:
   if not json.loads(existing.stdout)['isDraft']:raise ValueError('Release already published; refusing replacement')
  else:run('gh','release','create',tag,'--repo',REPO,'--draft','--latest=false','--title',f'QVK public{args.public} · {m[3]}','--notes-file',notes)
+ releases=json.loads(subprocess.check_output(['gh','api',f'repos/{REPO}/releases?per_page=100'],text=True))
+ release_id=next(x['id'] for x in releases if x['tag_name']==tag and x['draft'])
  with tempfile.TemporaryDirectory(prefix='qvk-publish-') as td:
   repo=Path(td)/'repo';run('gh','repo','clone',REPO,repo,'--','--depth','1');run('git','switch','-c',branch,cwd=repo)
   root=repo/'qvk/incoming';root.mkdir(parents=True,exist_ok=True);parts=[]
   with apk.open('rb') as stream:
    while chunk:=stream.read(40*1024*1024):
     name=f'apk.part{len(parts):03}';(root/name).write_bytes(chunk);parts.append(dict(name=name,bytes=len(chunk),sha256=hashlib.sha256(chunk).hexdigest()))
-  (root/'manifest.json').write_text(json.dumps(dict(tag=tag,update=item,chunks=parts),ensure_ascii=False,indent=2)+'\n')
+  (root/'manifest.json').write_text(json.dumps(dict(tag=tag,release_id=release_id,update=item,chunks=parts),ensure_ascii=False,indent=2)+'\n')
   run('git','add','qvk/incoming',cwd=repo)
   run('git','-c','user.name=QVK release automation','-c','user.email=qvk-release@users.noreply.github.com','commit','-m',f'Stage verified {tag} for automatic publication',cwd=repo)
   run('git','-c','credential.helper=!gh auth git-credential','push','origin',f'HEAD:{branch}',cwd=repo)
