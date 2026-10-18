@@ -23,7 +23,7 @@ def main():
   signer=sorted((sdk/'build-tools').glob('*/apksigner'))[-1]
   verified=subprocess.check_output([str(signer),'verify','--verbose','--print-certs',str(apk)],text=True)
   cert='a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc'
-  if f'Signer #1 certificate SHA-256 digest: {cert}' not in verified:raise ValueError('Wrong signer')
+  if set(re.findall(r'certificate sha-256 digest:\s*([0-9a-fA-F]{64})', verified.lower())) != {cert}:raise ValueError('Wrong signer: ' + repr(re.findall(r'certificate[^\n]*', verified)))
   metadata=subprocess.check_output([str(signer.parent/'aapt'),'dump','badging',str(apk)],text=True).splitlines()[0]
   for attribute,value in [('name','ru.qmods.qvk'),('versionCode',str(item['version_code'])),('versionName',item['version_name'])]:
    if f"{attribute}='{value}'" not in metadata:raise ValueError('APK metadata mismatch')
