@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "package": "ru.qmods.qvk",
-  "version_code": 23726,
-  "version_name": "8.100-qvk-1.2.3",
-  "apk_size": 192571921,
-  "sha256": "30da46d34b15c3e08b64cbef4a82d55f4b9f194df5b9838e5997beeb4bb33586",
-  "apk_url": "https://github.com/3Be3ga4Ka/vk-lite-updates/releases/download/qvk-public28/QVK_8.100_public28.apk",
-  "text": "• Добавлена кнопка «Скачать историю» в верхнее меню «⋮» просмотрщика историй.\n• Исправлен вылет при неудачной загрузке изображений, вызывавший повторные сообщения о сбое.\n"
+  "version_code": 23727,
+  "version_name": "8.100-qvk-1.2.4",
+  "apk_size": 192584209,
+  "sha256": "7df9cf2e51e9912e717892b42ef77b2dece43b68d4ed7cce1606cef3303db498",
+  "apk_url": "https://github.com/3Be3ga4Ka/vk-lite-updates/releases/download/qvk-public29/QVK_8.100_public29.apk",
+  "text": "• Исправлен запуск установщика обновления: корректный FileProvider, MIME-тип и временный доступ к APK.\n• Окно обновления повторяет показ после временного перекрытия экрана.\n• Сохранены исправления скачивания историй из public28.\n\nПри переходе с public27/public28 установите этот APK через Telegram или файловый менеджер: в старой версии сломан запуск установщика из приложения.\n"
 }
