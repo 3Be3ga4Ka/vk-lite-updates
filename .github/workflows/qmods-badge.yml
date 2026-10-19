@@ -1,0 +1,45 @@
+name: QMods badges
+on:
+  issues:
+    types: [opened, edited, closed, reopened, deleted, transferred]
+  workflow_dispatch:
+permissions:
+  contents: write
+  issues: read
+concurrency:
+  group: qmods-badges
+  cancel-in-progress: false
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rebuild decorative opt-in registry
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import os,json,re,base64,urllib.request,urllib.error
+          token=os.environ['GH_TOKEN'];repo=os.environ['GH_REPO'];base='https://api.github.com/repos/'+repo
+          def api(path,method='GET',data=None):
+              body=None if data is None else json.dumps(data).encode()
+              req=urllib.request.Request(base+path,data=body,method=method,headers={'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json','User-Agent':'QMods-opt-in-registry'})
+              with urllib.request.urlopen(req,timeout=30) as r:return json.load(r)
+          users={}
+          for page in range(1,101):
+              issues=api('/issues?state=open&per_page=100&sort=created&direction=asc&page='+str(page))
+              for i in issues:
+                  if i.get('pull_request') or i.get('title')!='QMods: подключить значок':continue
+                  body=i.get('body') or ''
+                  m=re.search(r'^vk_id:\s*([1-9][0-9]{0,12})\s*$',body,re.M)
+                  consent='consent: public-decorative-badge' in body
+                  if not m or not consent:continue
+                  uid=int(m.group(1))
+                  users.setdefault(uid,{'id':uid,'badge':'QMods','issue':i['number'],'github':i['user']['login'],'unverified':True})
+              if len(issues)<100:break
+          value={'schema':1,'policy':'Voluntary decorative badges; VK identity is not verified. Close your issue to opt out.','users':list(users.values())}
+          old=api('/contents/qmods-badges.json')
+          content=json.dumps(value,ensure_ascii=False,separators=(',',':')).encode()
+          if base64.b64decode(old['content'])!=content:
+              api('/contents/qmods-badges.json','PUT',{'message':'Update voluntary QMods badges','sha':old['sha'],'branch':'main','content':base64.b64encode(content).decode()})
+          PY
