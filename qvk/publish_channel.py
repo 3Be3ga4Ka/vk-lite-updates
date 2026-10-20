@@ -1,5 +1,5 @@
 """Validate a published signed release, then atomically activate its public update/broadcast."""
-import base64,hashlib,json,os,re,subprocess,tempfile,zipfile
+import base64,hashlib,json,os,re,subprocess,tempfile,zipfile,urllib.request
 from pathlib import Path
 
 def gh(*args):
@@ -61,5 +61,9 @@ def activate(repo,tag):
   if old: payload['sha']=old['sha']
   request=root/'commit.json';request.write_text(json.dumps(payload))
   subprocess.run(['gh','api','--method','PUT',path,'--input',str(request),'--silent'],check=True)
+  try:
+   with urllib.request.urlopen('https://purge.jsdelivr.net/gh/'+repo+'@main/qvk/stable.json',timeout=30) as response:
+    print('CDN channel purge:',response.status)
+  except Exception as error:print('CDN purge deferred:',type(error).__name__)
   print(f'QVK update broadcast active: {tag}')
 if __name__=='__main__':activate(os.environ['QVK_REPOSITORY'],os.environ['QVK_RELEASE_TAG'])
