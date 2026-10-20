@@ -1,5 +1,5 @@
 """GitHub runner upload path when an external CLI identity cannot use uploads.github.com."""
-import hashlib,json,os,re,subprocess,tempfile,urllib.request,urllib.parse
+import hashlib,json,os,re,subprocess,tempfile,urllib.request,urllib.parse,zipfile
 from pathlib import Path
 from publish_channel import activate,gh
 
@@ -27,6 +27,10 @@ def main():
   metadata=subprocess.check_output([str(signer.parent/'aapt'),'dump','badging',str(apk)],text=True).splitlines()[0]
   for attribute,value in [('name','ru.qmods.qvk'),('versionCode',str(item['version_code'])),('versionName',item['version_name'])]:
    if f"{attribute}='{value}'" not in metadata:raise ValueError('APK metadata mismatch')
+  sources=Path(td)/('QVK_'+tag.removeprefix('qvk-')+'_sources.zip')
+  with zipfile.ZipFile(apk) as archive:sources.write_bytes(archive.read('assets/third_party/sova-port10-helper-sources.zip'))
+  with zipfile.ZipFile(sources) as archive:
+   if archive.testzip() or 'build_public'+tag.removeprefix('qvk-public')+'.py' not in archive.namelist():raise ValueError('Source bundle mismatch')
   manifest=Path(td)/'qvk-update.json';manifest.write_text(json.dumps(item,ensure_ascii=False,indent=2)+'\n')
   release_id=data['release_id']
   if not isinstance(release_id,int) or release_id<=0:raise ValueError('Invalid release ID')
@@ -34,11 +38,11 @@ def main():
   if release['tag_name']!=tag:raise ValueError('Release tag mismatch')
   if release['draft']:
    for asset in release['assets']:
-    if asset['name'] in [name,'qvk-update.json']:
+    if asset['name'] in [name,'qvk-update.json',sources.name]:
      subprocess.run(['gh','api','--method','DELETE',f"repos/{repo}/releases/assets/{asset['id']}",'--silent'],check=True)
    endpoint=release['upload_url'].split('{',1)[0]
    if endpoint!=f'https://uploads.github.com/repos/{repo}/releases/{release_id}/assets':raise ValueError('Invalid upload endpoint')
-   for file,mime in [(apk,'application/vnd.android.package-archive'),(manifest,'application/json')]:
+   for file,mime in [(apk,'application/vnd.android.package-archive'),(manifest,'application/json'),(sources,'application/zip')]:
     request=urllib.request.Request(endpoint+'?name='+urllib.parse.quote(file.name),data=file.read_bytes(),method='POST',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Content-Type':mime,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
     with urllib.request.urlopen(request,timeout=300) as uploaded:
      if uploaded.status!=201:raise RuntimeError('Asset upload failed')
