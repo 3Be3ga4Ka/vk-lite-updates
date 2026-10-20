@@ -25,3 +25,4 @@ jobs:
           git commit -m 'Refresh public QVK catalog mirrors'
           git pull --rebase origin main
           git push origin HEAD:main
+      - run: python3 qvk/mirror_catalog.py --purge
