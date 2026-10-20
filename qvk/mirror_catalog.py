@@ -22,4 +22,13 @@ def main():
    if offset<0:break
   value={'schema':1,'mirrored_at':int(time.time()),'source':'https://qmods.ru/qvk-community.php','items':rows,'total':page['total']}
   (root/(kind+'.json')).write_text(json.dumps(value,ensure_ascii=False,separators=(',',':'))+'\n')
-if __name__=='__main__':main()
+def purge():
+ for kind in ['theme','settings']:
+  try:
+   with urllib.request.urlopen('https://purge.jsdelivr.net/gh/3Be3ga4Ka/vk-lite-updates@main/qvk/catalog/'+kind+'.json',timeout=20) as response:print('Catalog CDN purge',kind,response.status)
+  except Exception as error:print('Purge deferred',kind,type(error).__name__)
+if __name__=='__main__':
+ import sys
+ if '--purge' in sys.argv:purge()
+ else:main()
+
