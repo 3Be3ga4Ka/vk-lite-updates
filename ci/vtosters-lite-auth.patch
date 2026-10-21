@@ -291,6 +291,71 @@ index b11da6fc..70920057 100644
  
      .line 18
      new-instance v1, Lcom/vk/api/sdk/exceptions/VKApiExecutionException;
+diff --git a/app/src/main/java/ru/vtosters/hooks/AuthDiagnostics.java b/app/src/main/java/ru/vtosters/hooks/AuthDiagnostics.java
+new file mode 100644
+index 00000000..8fd475d2
+--- /dev/null
++++ b/app/src/main/java/ru/vtosters/hooks/AuthDiagnostics.java
+@@ -0,0 +1,59 @@
++package ru.vtosters.hooks;
++
++import java.util.Arrays;
++import java.util.HashSet;
++import java.util.Set;
++import okhttp3.Request;
++import org.json.JSONObject;
++
++/** Fixed vocabulary only: never copy a server string, URL or exception message to logcat. */
++public final class AuthDiagnostics {
++    private static final Set<String> ERRORS = new HashSet<>(Arrays.asList(
++            "invalid_client", "invalid_request", "invalid_grant", "need_captcha", "need_validation",
++            "need_authcheck", "too_many_requests", "too_much_tries", "too_many_tries",
++            "invalid_anonymous_token", "anonymous_token_has_expired", "access_denied",
++            "authorization_failed", "password_attempts_exceeded", "flood_control"));
++    private AuthDiagnostics() {}
++
++    public static String stage(Request request) {
++        String path = android.net.Uri.parse(request.g().toString()).getPath();
++        if ("/token".equals(path)) return "token";
++        if ("/method/auth.getAnonymToken".equals(path)) return "anonymous_api";
++        if ("/get_anonym_token".equals(path)) return "anonymous_oauth";
++        return "other";
++    }
++
++    private static String error(Object value) {
++        return value instanceof String && ERRORS.contains(value) ? (String)value
++                : value == null || value == JSONObject.NULL ? "none" : "other";
++    }
++
++    public static String summary(String body) {
++        try {
++            JSONObject root = new JSONObject(body);
++            JSONObject nested = root.optJSONObject("error");
++            JSONObject result = root.optJSONObject("response");
++            JSONObject details = nested == null ? root : nested;
++            return "error=" + (nested == null ? error(root.opt("error")) : "api")
++                    + " code=" + details.optInt("error_code", 0)
++                    + " type=" + error(root.opt("error_type"))
++                    + " captcha=" + (details.has("redirect_uri") || details.has("captcha_sid"))
++                    + " access_token=" + root.has("access_token")
++                    + " anonymous_token=" + (root.has("token") || result != null && result.has("token"));
++        } catch (Exception ignored) {
++            return "response=non_json";
++        }
++    }
++
++    public static String failure(Throwable error) {
++        if (error instanceof InterruptedException) return "interrupted";
++        if (error instanceof javax.net.ssl.SSLException) return "tls";
++        if (error instanceof java.net.SocketTimeoutException) return "timeout";
++        if (error instanceof java.net.ConnectException) return "connection";
++        if (error instanceof java.net.UnknownHostException) return "dns";
++        if (error instanceof com.vk.api.sdk.exceptions.VKApiExecutionException)
++            return "api_code_" + ((com.vk.api.sdk.exceptions.VKApiExecutionException)error).d();
++        if (error instanceof java.io.IOException) return "io";
++        return "internal";
++    }
++}
 diff --git a/app/src/main/java/ru/vtosters/hooks/CaptchaHook.java b/app/src/main/java/ru/vtosters/hooks/CaptchaHook.java
 new file mode 100644
 index 00000000..d788d821
@@ -491,10 +556,10 @@ index 00000000..d788d821
 +}
 diff --git a/app/src/main/java/ru/vtosters/hooks/ModernAuthExecutor.java b/app/src/main/java/ru/vtosters/hooks/ModernAuthExecutor.java
 new file mode 100644
-index 00000000..0653d676
+index 00000000..85e5f283
 --- /dev/null
 +++ b/app/src/main/java/ru/vtosters/hooks/ModernAuthExecutor.java
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,81 @@
 +package ru.vtosters.hooks;
 +
 +import com.vk.api.sdk.VKApiConfig;
@@ -524,10 +589,12 @@ index 00000000..0653d676
 +    }
 +
 +    @Override public String a(OAuthHttpUrlPostCall call, ChainArgs args) {
++        android.util.Log.i("VKAuthTrace", "build=auth-r3 event=begin");
 +        timeout.set(call.b() + e());
 +        try {
 +            return flow.execute(call.c(), args);
 +        } catch (Exception error) {
++            android.util.Log.i("VKAuthTrace", "event=failed reason=" + AuthDiagnostics.failure(error));
 +            // Kotlin's executor API does not declare checked exceptions. Preserve them
 +            // for the SDK's existing exception/validation chain instead of wrapping.
 +            return ModernAuthExecutor.<RuntimeException, String>raise(error);
@@ -537,11 +604,20 @@ index 00000000..0653d676
 +    }
 +
 +    private String send(Request request) throws Exception {
++        String stage = AuthDiagnostics.stage(request);
++        android.util.Log.i("VKAuthTrace", "stage=" + stage + " event=send");
 +        long duration = timeout.get();
 +        Response response = a(request, duration);
++        android.util.Log.i("VKAuthTrace", "stage=" + stage + " http=" + response.d()
++                + " challenge=" + "required".equals(response.a("X-Challenge")));
 +        Request retry = CaptchaHook.challengeRequest(response);
-+        if (retry != null) response = a(retry, duration);
-+        return a(response);
++        if (retry != null) {
++            response = a(retry, duration);
++            android.util.Log.i("VKAuthTrace", "stage=" + stage + " event=challenge_result http=" + response.d());
++        }
++        String body = a(response);
++        android.util.Log.i("VKAuthTrace", "stage=" + stage + " " + AuthDiagnostics.summary(body));
++        return body;
 +    }
 +
 +    private void captcha(JSONObject answer, ChainArgs args) throws Exception {
@@ -899,10 +975,10 @@ index 00000000..45dee232
 +}
 diff --git a/docs/authentication.md b/docs/authentication.md
 new file mode 100644
-index 00000000..ce8f29de
+index 00000000..1ca1e6e5
 --- /dev/null
 +++ b/docs/authentication.md
-@@ -0,0 +1,104 @@
+@@ -0,0 +1,118 @@
 +# Authentication and captcha compatibility
 +
 +## Confirmed in this repository
@@ -1007,12 +1083,98 @@ index 00000000..ce8f29de
 +
 +- [Official VK 8.193 APK source](https://apkpure.com/vk-music-video-messenger/com.vkontakte.android/download/8.193)
 +- [VK official-app certificate in the published SDK](https://github.com/VKCOM/vkid-android-sdk/blob/master/sdk/core/vkid/src/main/java/com/vk/id/internal/auth/app/TrustedProvidersCache.kt)
++
++## Device diagnostics and smali delivery (auth-r3)
++
++The `VKAuthTrace` logcat tag records a fixed build marker, request stages
++(`anonymous_api`, `anonymous_oauth`, `token`), HTTP status, known error names,
++numeric API error codes and presence flags. It never records raw URLs, request
++parameters, response bodies, descriptions, exception messages or credential values.
++Unknown server strings become `other`. Rejection behavior is unchanged.
++
++`ExportAuthSmali.java` exports only modified SDK classes, auth/captcha helper
++classes and their compiled nested/lambda classes from the complete APK. The ZIP
++starts with `com/` and `ru/`; it contains only `.smali` files. This package updates
++the previously delivered APK, whose manifest already registers WebCaptchaActivity.
++An untouched upstream APK would additionally need that manifest registration.
+diff --git a/scripts/ExportAuthSmali.java b/scripts/ExportAuthSmali.java
+new file mode 100644
+index 00000000..ff4c7203
+--- /dev/null
++++ b/scripts/ExportAuthSmali.java
+@@ -0,0 +1,66 @@
++import java.io.File;
++import java.nio.file.*;
++import java.util.*;
++import java.util.zip.*;
++import org.jf.baksmali.Baksmali;
++import org.jf.baksmali.BaksmaliOptions;
++import org.jf.dexlib2.DexFileFactory;
++import org.jf.dexlib2.Opcodes;
++import org.jf.dexlib2.iface.*;
++
++/** Export package-root smali only; input is the fully compiled APK. */
++public final class ExportAuthSmali {
++    public static void main(String[] args) throws Exception {
++        MultiDexContainer<?> apk = DexFileFactory.loadDexContainer(new File(args[0]), Opcodes.forApi(28));
++        List<String> roots = Arrays.asList(
++            "Lru/vtosters/hooks/CaptchaHook", "Lru/vtosters/hooks/ModernAuthExecutor",
++            "Lru/vtosters/hooks/ModernAuthFlow", "Lru/vtosters/hooks/AuthDiagnostics",
++            "Lru/vtosters/lite/ui/activities/WebCaptchaActivity");
++        Set<String> patched = new HashSet<>(Arrays.asList(
++            "Lcom/vk/api/sdk/chain/MethodChainCall;",
++            "Lcom/vk/api/sdk/chain/ValidationHandlerChainCall;",
++            "Lcom/vk/api/sdk/internal/VKErrorUtils;",
++            "Lcom/vk/auth/api/VKAuthApiManager$executor$2;",
++            "Lcom/vk/auth/api/VKAuthOkHttpExecutor;",
++            "Lcom/vk/auth/api/c/OAuthHttpUrlChainCall;"));
++        List<ClassDef> selected = new ArrayList<>();
++        for (String entry : apk.getDexEntryNames()) {
++            for (ClassDef cls : apk.getEntry(entry).getDexFile().getClasses()) {
++                String type = cls.getType();
++                boolean include = patched.contains(type);
++                for (String root : roots) {
++                    include |= type.equals(root+";") || type.startsWith(root+"$");
++                    int slash=root.lastIndexOf('/');
++                    include |= type.startsWith(root.substring(0,slash+1)+"-$$Lambda$"+root.substring(slash+1)+"$");
++                }
++                if (include) selected.add(cls);
++            }
++        }
++        Path staging = Files.createTempDirectory("auth-smali-");
++        BaksmaliOptions options = new BaksmaliOptions();
++        options.apiLevel=28; options.localsDirective=true; options.debugInfo=true;
++        // Disassemble each source dex with a class filter, retaining the APK's
++        // compiled/desugared lambda classes as well as the edited SDK classes.
++        List<String> names = new ArrayList<>();
++        for (ClassDef cls:selected) names.add(cls.getType());
++        for(String entry:apk.getDexEntryNames()) {
++            if(!Baksmali.disassembleDexFile(apk.getEntry(entry).getDexFile(),staging.toFile(),2,options,names))
++                throw new IllegalStateException("Disassembly failed");
++        }
++        List<Path> files=new ArrayList<>();
++        try(java.util.stream.Stream<Path> stream=Files.walk(staging)) {
++            stream.filter(Files::isRegularFile).sorted().forEach(files::add);
++        }
++        if(files.size()!=selected.size())throw new IllegalStateException("Missing or duplicate exported classes");
++        try(ZipOutputStream zip=new ZipOutputStream(Files.newOutputStream(Paths.get(args[1])))) {
++            for(Path file:files) {
++                String name=staging.relativize(file).toString().replace(File.separatorChar,'/');
++                if(!name.endsWith(".smali") || !(name.startsWith("com/")||name.startsWith("ru/")))
++                    throw new IllegalStateException("Unexpected ZIP root");
++                zip.putNextEntry(new ZipEntry(name)); Files.copy(file,zip);zip.closeEntry();
++                System.out.println(name);
++            }
++        }
++        System.out.println("Exported "+files.size()+" patched smali classes");
++    }
++}
 diff --git a/scripts/test_auth.sh b/scripts/test_auth.sh
 new file mode 100644
-index 00000000..d66075fa
+index 00000000..b1e086a3
 --- /dev/null
 +++ b/scripts/test_auth.sh
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,26 @@
 +#!/usr/bin/env bash
 +set -euo pipefail
 +cd "$(dirname "$0")/.."
@@ -1032,10 +1194,42 @@ index 00000000..d66075fa
 +    app/src/main/java/ru/vtosters/lite/ui/activities/WebCaptchaActivity.java \
 +    app/src/main/java/ru/vtosters/hooks/ModernAuthFlow.java \
 +    app/src/main/java/ru/vtosters/hooks/ModernAuthExecutor.java \
++    app/src/main/java/ru/vtosters/hooks/AuthDiagnostics.java \
++    tests/auth/AuthDiagnosticsTest.java \
 +    tests/auth/ModernAuthFlowTest.java \
 +    tests/auth/CaptchaHookTest.java
 +java -cp "$test_output:$ANDROID_ALL_JAR:$test_libraries" CaptchaHookTest
 +java -cp "$test_output:$ANDROID_ALL_JAR:$test_libraries" ModernAuthFlowTest
++java -cp "$test_output:$ANDROID_ALL_JAR:$test_libraries" AuthDiagnosticsTest
+diff --git a/tests/auth/AuthDiagnosticsTest.java b/tests/auth/AuthDiagnosticsTest.java
+new file mode 100644
+index 00000000..5bea9f45
+--- /dev/null
++++ b/tests/auth/AuthDiagnosticsTest.java
+@@ -0,0 +1,23 @@
++import okhttp3.Request;
++import ru.vtosters.hooks.AuthDiagnostics;
++public final class AuthDiagnosticsTest {
++    private static int checks;
++    private static void check(boolean value) {checks++;if(!value)throw new AssertionError("Check "+checks);}
++    public static void main(String[] args) {
++        String secret="PRIVATE-credential-canary";
++        String summary=AuthDiagnostics.summary("{\"error\":\"invalid_client\",\"error_type\":\"too_much_tries\",\"error_description\":\""+secret+"\",\"access_token\":\""+secret+"\"}");
++        check(summary.contains("error=invalid_client"));check(summary.contains("type=too_much_tries"));check(!summary.contains(secret));
++        check(AuthDiagnostics.summary("{\"error\":\""+secret+"\",\"error_type\":\""+secret+"\"}").contains("error=other"));
++        check(!AuthDiagnostics.summary("{\"error\":\""+secret+"\",\"error_type\":\""+secret+"\"}").contains(secret));
++        summary=AuthDiagnostics.summary("{\"error\":{\"error_code\":14,\"redirect_uri\":\"https://vk.com/?token="+secret+"\"}}");
++        check(summary.contains("code=14"));check(summary.contains("captcha=true"));check(!summary.contains(secret));
++        check("response=non_json".equals(AuthDiagnostics.summary("<html>"+secret+"</html>")));
++        for(String[] pair:new String[][]{{"/token","token"},{"/method/auth.getAnonymToken","anonymous_api"},{"/get_anonym_token","anonymous_oauth"},{"/"+secret,"other"}}) {
++            check(pair[1].equals(AuthDiagnostics.stage(new Request.a().b("https://vk.com"+pair[0]+"?password="+secret).a())));
++        }
++        check("connection".equals(AuthDiagnostics.failure(new java.net.ConnectException(secret))));
++        check("internal".equals(AuthDiagnostics.failure(new RuntimeException(secret))));
++        check(AuthDiagnostics.summary("{\"response\":{\"token\":\""+secret+"\"}}").contains("anonymous_token=true"));
++        System.out.println("Auth diagnostics: "+checks+" checks passed");
++    }
++}
 diff --git a/tests/auth/CaptchaHookTest.java b/tests/auth/CaptchaHookTest.java
 new file mode 100644
 index 00000000..be8cabeb

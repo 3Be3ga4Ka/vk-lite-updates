@@ -77,12 +77,17 @@ jobs:
           java -jar scripts/apksigner.jar verify --verbose scripts/VTLite.apk
           sha256sum scripts/VTLite.apk > scripts/VTLite.apk.sha256
 
-      - name: Upload signed APK
+      - name: Export patched smali at package root
+        working-directory: source
+        run: |
+          mkdir -p "$RUNNER_TEMP/smali-export"
+          javac -cp scripts/apktool.jar -d "$RUNNER_TEMP/smali-export" scripts/ExportAuthSmali.java
+          java -cp "scripts/apktool.jar:$RUNNER_TEMP/smali-export" ExportAuthSmali scripts/VTLite.apk scripts/VTLite-auth-r3-smali.zip
+
+      - name: Upload patched smali
         uses: actions/upload-artifact@v4
         with:
-          name: VTLite-auth-captcha
-          path: |
-            source/scripts/VTLite.apk
-            source/scripts/VTLite.apk.sha256
+          name: VTLite-auth-r3-smali
+          path: source/scripts/VTLite-auth-r3-smali.zip
           if-no-files-found: error
           retention-days: 14
