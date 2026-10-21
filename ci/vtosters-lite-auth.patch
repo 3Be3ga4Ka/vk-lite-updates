@@ -109,6 +109,28 @@ index 0d8aad8f..eb5ad407 100644
  
      goto :goto_0
  
+diff --git a/smali/smali_classes2/com/vk/auth/api/VKAuthApiManager$executor$2.smali b/smali/smali_classes2/com/vk/auth/api/VKAuthApiManager$executor$2.smali
+index 6b7ccc56..560c6ae0 100644
+--- a/smali/smali_classes2/com/vk/auth/api/VKAuthApiManager$executor$2.smali
++++ b/smali/smali_classes2/com/vk/auth/api/VKAuthApiManager$executor$2.smali
+@@ -49,7 +49,7 @@
+     .locals 3
+ 
+     .line 2
+-    new-instance v0, Lcom/vk/auth/api/VKAuthOkHttpExecutor;
++    new-instance v0, Lru/vtosters/hooks/ModernAuthExecutor;
+ 
+     new-instance v1, Lcom/vk/api/sdk/okhttp/OkHttpExecutorConfig;
+ 
+@@ -57,7 +57,7 @@
+ 
+     invoke-direct {v1, v2}, Lcom/vk/api/sdk/okhttp/OkHttpExecutorConfig;-><init>(Lcom/vk/api/sdk/VKApiConfig;)V
+ 
+-    invoke-direct {v0, v1}, Lcom/vk/auth/api/VKAuthOkHttpExecutor;-><init>(Lcom/vk/api/sdk/okhttp/OkHttpExecutorConfig;)V
++    invoke-direct {v0, v1, v2}, Lru/vtosters/hooks/ModernAuthExecutor;-><init>(Lcom/vk/api/sdk/okhttp/OkHttpExecutorConfig;Lcom/vk/api/sdk/VKApiConfig;)V
+ 
+     return-object v0
+ .end method
 diff --git a/smali/smali_classes2/com/vk/auth/api/VKAuthOkHttpExecutor.smali b/smali/smali_classes2/com/vk/auth/api/VKAuthOkHttpExecutor.smali
 index 4011b3db..21881863 100644
 --- a/smali/smali_classes2/com/vk/auth/api/VKAuthOkHttpExecutor.smali
@@ -467,6 +489,206 @@ index 00000000..d788d821
 +        Session(String redirect) { this.redirect = redirect; }
 +    }
 +}
+diff --git a/app/src/main/java/ru/vtosters/hooks/ModernAuthExecutor.java b/app/src/main/java/ru/vtosters/hooks/ModernAuthExecutor.java
+new file mode 100644
+index 00000000..0653d676
+--- /dev/null
++++ b/app/src/main/java/ru/vtosters/hooks/ModernAuthExecutor.java
+@@ -0,0 +1,70 @@
++package ru.vtosters.hooks;
++
++import com.vk.api.sdk.VKApiConfig;
++import com.vk.api.sdk.VKApiValidationHandler;
++import com.vk.api.sdk.chain.ChainArgs;
++import com.vk.api.sdk.exceptions.VKApiExecutionException;
++import com.vk.api.sdk.okhttp.OkHttpExecutorConfig;
++import com.vk.auth.api.VKAuthOkHttpExecutor;
++import com.vk.auth.api.b.OAuthHttpUrlPostCall;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.TimeUnit;
++import okhttp3.Request;
++import okhttp3.Response;
++import org.json.JSONObject;
++
++/** Keeps Lite's configured network client, proxy and existing validation UI. */
++public final class ModernAuthExecutor extends VKAuthOkHttpExecutor {
++    private final VKApiConfig config;
++    private final ModernAuthFlow flow;
++    private final ThreadLocal<Long> timeout = new ThreadLocal<>();
++
++    public ModernAuthExecutor(OkHttpExecutorConfig executorConfig, VKApiConfig config) {
++        super(executorConfig);
++        this.config = config;
++        flow = new ModernAuthFlow(this::send, this::captcha, config.g().getValue(),
++                config.o(), config.h(), config.f().getValue());
++    }
++
++    @Override public String a(OAuthHttpUrlPostCall call, ChainArgs args) {
++        timeout.set(call.b() + e());
++        try {
++            return flow.execute(call.c(), args);
++        } catch (Exception error) {
++            // Kotlin's executor API does not declare checked exceptions. Preserve them
++            // for the SDK's existing exception/validation chain instead of wrapping.
++            return ModernAuthExecutor.<RuntimeException, String>raise(error);
++        } finally {
++            timeout.remove();
++        }
++    }
++
++    private String send(Request request) throws Exception {
++        long duration = timeout.get();
++        Response response = a(request, duration);
++        Request retry = CaptchaHook.challengeRequest(response);
++        if (retry != null) response = a(retry, duration);
++        return a(response);
++    }
++
++    private void captcha(JSONObject answer, ChainArgs args) throws Exception {
++        VKApiExecutionException error = new VKApiExecutionException(14, "auth.getAnonymToken",
++                false, "need_captcha", CaptchaHook.extras(answer), null, null);
++        if (CaptchaHook.handle(error, args)) return;
++        String image = answer.optString("captcha_img");
++        String sid = answer.optString("captcha_sid");
++        VKApiValidationHandler handler = config.n();
++        if (handler == null || image.isEmpty() || sid.isEmpty()) throw error;
++        CountDownLatch done = new CountDownLatch(1);
++        VKApiValidationHandler.a<String> callback = new VKApiValidationHandler.a<>(done);
++        handler.c(image, callback);
++        if (!done.await(5, TimeUnit.MINUTES)) throw error;
++        String solution = callback.b();
++        if (solution == null || solution.isEmpty()) throw error;
++        args.b(sid);
++        args.a(solution);
++    }
++
++    @SuppressWarnings("unchecked")
++    private static <E extends Throwable, T> T raise(Throwable error) throws E { throw (E) error; }
++}
+diff --git a/app/src/main/java/ru/vtosters/hooks/ModernAuthFlow.java b/app/src/main/java/ru/vtosters/hooks/ModernAuthFlow.java
+new file mode 100644
+index 00000000..ea59bf7a
+--- /dev/null
++++ b/app/src/main/java/ru/vtosters/hooks/ModernAuthFlow.java
+@@ -0,0 +1,118 @@
++package ru.vtosters.hooks;
++
++import android.net.Uri;
++import com.vk.api.sdk.chain.ChainArgs;
++import java.io.IOException;
++import okhttp3.CacheControl;
++import okhttp3.FormBody;
++import okhttp3.Request;
++import org.json.JSONObject;
++
++/** Password transport used by the official Android client (8.193). */
++public final class ModernAuthFlow {
++    public interface Transport { String send(Request request) throws Exception; }
++    public interface Captcha { void solve(JSONObject error, ChainArgs args) throws Exception; }
++    private final Transport transport;
++    private final Captcha captcha;
++    private final String apiHost, version, language, device;
++    private String anonymousToken, identity;
++
++    public ModernAuthFlow(Transport transport, Captcha captcha, String apiHost,
++                          String version, String language, String device) {
++        this.transport = transport;
++        this.captcha = captcha;
++        this.apiHost = apiHost;
++        this.version = version;
++        this.language = language;
++        this.device = device;
++    }
++
++    // One executor owns one device's anonymous session; concurrent calls cannot mix it.
++    public synchronized String execute(String url, ChainArgs args) throws Exception {
++        Uri source = Uri.parse(url);
++        if (!"/token".equals(source.getPath()) || source.getQueryParameter("client_secret") == null) {
++            return transport.send(form(CaptchaHook.applyToUrl(url, args)));
++        }
++        String client = source.getQueryParameter("client_id");
++        String secret = source.getQueryParameter("client_secret");
++        String key = client + ":" + secret;
++        if (!key.equals(identity)) { anonymousToken = null; identity = key; }
++        for (int attempt = 0; attempt < 2; attempt++) {
++            if (anonymousToken == null) anonymousToken = acquire(source, client, secret);
++            Uri.Builder builder = copy(source, "client_id", "client_secret", "anonymous_token",
++                    "api_id", "https", "v", "lang", "device_id");
++            builder.appendQueryParameter("anonymous_token", anonymousToken);
++            common(builder, client);
++            String answer = transport.send(form(CaptchaHook.applyToUrl(builder.build().toString(), args)));
++            if (!needsAnonymousRefresh(new JSONObject(answer)) || attempt == 1) return answer;
++            anonymousToken = null;
++        }
++        throw new AssertionError("Unreachable");
++    }
++
++    public static boolean needsAnonymousRefresh(JSONObject answer) {
++        String error = answer.optString("error");
++        return "invalid_anonymous_token".equals(error) || "anonymous_token_has_expired".equals(error);
++    }
++
++    private String acquire(Uri source, String client, String secret) throws Exception {
++        Uri.Builder builder = new Uri.Builder().scheme("https").authority(apiHost)
++                .path("/method/auth.getAnonymToken");
++        common(builder, client);
++        builder.appendQueryParameter("client_id", client).appendQueryParameter("client_secret", secret);
++        JSONObject answer = anonymousAnswer(builder.build().toString());
++        JSONObject error = answer.optJSONObject("error");
++        // The official client keeps this fallback for servers without the API method.
++        if (error != null && error.optInt("error_code") == 3) {
++            builder = source.buildUpon().clearQuery().fragment(null).path("/get_anonym_token");
++            common(builder, client);
++            builder.appendQueryParameter("client_id", client).appendQueryParameter("client_secret", secret);
++            answer = anonymousAnswer(builder.build().toString());
++        }
++        JSONObject response = answer.optJSONObject("response");
++        Object token = (response == null ? answer : response).opt("token");
++        if (!(token instanceof String) || ((String) token).isEmpty()) {
++            throw new IOException("VK did not issue an anonymous authorization token");
++        }
++        return (String) token;
++    }
++
++    private JSONObject anonymousAnswer(String url) throws Exception {
++        ChainArgs args = new ChainArgs();
++        for (int attempt = 0; attempt < 3; attempt++) {
++            JSONObject answer = new JSONObject(transport.send(form(CaptchaHook.applyToUrl(url, args))));
++            JSONObject error = answer.optJSONObject("error");
++            if (error == null && "need_captcha".equals(answer.optString("error"))) error = answer;
++            if (error == null || !(error.optInt("error_code") == 14
++                    || "need_captcha".equals(error.optString("error")))) return answer;
++            if (attempt == 2) throw new IOException("VK anonymous captcha retry limit reached");
++            captcha.solve(error, args);
++        }
++        throw new AssertionError("Unreachable");
++    }
++
++    private void common(Uri.Builder builder, String client) {
++        builder.appendQueryParameter("api_id", client).appendQueryParameter("https", "1")
++                .appendQueryParameter("v", version).appendQueryParameter("lang", language);
++        if (device != null && !device.isEmpty()) builder.appendQueryParameter("device_id", device);
++    }
++
++    private static Uri.Builder copy(Uri source, String... excluded) {
++        Uri.Builder builder = source.buildUpon().clearQuery().fragment(null);
++        outer: for (String key : source.getQueryParameterNames()) {
++            for (String skip : excluded) if (skip.equals(key)) continue outer;
++            for (String value : source.getQueryParameters(key)) builder.appendQueryParameter(key, value);
++        }
++        return builder;
++    }
++
++    public static Request form(String url) {
++        Uri source = Uri.parse(url);
++        FormBody.a body = new FormBody.a();
++        for (String key : source.getQueryParameterNames()) {
++            for (String value : source.getQueryParameters(key)) body.a(key, value);
++        }
++        return new Request.a().b(source.buildUpon().clearQuery().fragment(null).build().toString())
++                .a(body.a()).a(CacheControl.n).a();
++    }
++}
 diff --git a/app/src/main/java/ru/vtosters/lite/ui/activities/WebCaptchaActivity.java b/app/src/main/java/ru/vtosters/lite/ui/activities/WebCaptchaActivity.java
 new file mode 100644
 index 00000000..45dee232
@@ -677,10 +899,10 @@ index 00000000..45dee232
 +}
 diff --git a/docs/authentication.md b/docs/authentication.md
 new file mode 100644
-index 00000000..52f56ac3
+index 00000000..ce8f29de
 --- /dev/null
 +++ b/docs/authentication.md
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,104 @@
 +# Authentication and captcha compatibility
 +
 +## Confirmed in this repository
@@ -710,25 +932,59 @@ index 00000000..52f56ac3
 +  response, then retry the original request once with `X-Challenge-Solution`.
 +  This does not loop on a persistent challenge or retry an attempt-limit error.
 +
-+No client IDs or secrets were replaced. No account credentials were used during
-+development. A plain server rejection without a challenge remains a rejection;
-+this patch does not restore a revoked password grant or implement a new VK ID
-+authorization flow or device attestation.
++## Comparison with the official Android application
++
++The reference is VK 8.193, versionCode 57318 (September 2026), package
++`com.vkontakte.android`, arm64 APK. Its signing certificate SHA-1 is
++`48761eef50ee53afc4cc9c5f10e6bde7f8f5b82f`, matching the release certificate
++listed in VK's published `TrustedProvidersCache.kt`.
++
++The APK manifest still contains app ID **2274003**, and its embedded client key
++matches Lite's existing `ApiConfig` key. There is no evidence here of a revoked
++or changed key. Registering a separate third-party VK ID application is not a
++prerequisite for this compatibility patch.
++
++The examined classes (original Kotlin source names) establish this sequence:
++
++1. `GetAnonymousTokenApiCommand` requests `auth.getAnonymToken` with the existing
++   client ID/key and device ID. `AnonymousTokenRequest` retains the OAuth
++   `/get_anonym_token` fallback. This patch limits that fallback to error 3
++   (unknown API method), and does not mask other server rejections.
++2. `BaseAuthCommand` sends `anonymous_token` instead of `client_id/client_secret`
++   when an anonymous token is available. Its request is a URL-encoded POST body,
++   including API version, language, device ID, `https=1` and `api_id`.
++3. `AuthRequest` and `VkAuthState` still support `grant_type=password`, username,
++   password and existing verification parameters. An anonymous token is refreshed
++   only for `invalid_anonymous_token` or `anonymous_token_has_expired`.
++
++`ModernAuthExecutor` is wired into `VKAuthApiManager` through its existing
++executor factory. It keeps Lite's HTTP provider and verification UI.
++`ModernAuthFlow` implements the anonymous-session preflight, form transport,
++per-executor cache and one bounded anonymous-token refresh. It preserves existing
++password, code, sid and captcha parameters. Preflight challenges use a separate
++captcha chain, so their answers do not leak into the password request.
++No password, rate-limit or `invalid_client` rejection is retried automatically.
++No request attestation is fabricated or captcha solved automatically.
++
++The new APK also contains `auth.validateAccount` and additional phone-first,
++passkey and VK Connect routes. Those are not reproduced wholesale: Lite retains
++its password UI and existing two-factor flow, with the current password transport.
++If VK rejects that route for a particular account, these changes cannot promise
++that a different server-selected verification route will work in Lite.
 +
 +## Verification and remaining device checks
 +
-+The standalone regression suite is documented in [tests/auth](../tests/auth/README.md).
-+The 54 regression checks passed, and Apktool assembled the modified smali and
-+manifest/resources successfully. Full Gradle compilation was attempted with JDK
-+17 and Android SDK 32, but project configuration stopped with `NDK is not installed`.
-+Smali syntax and manifest/resources can also be checked with:
++Run the standalone suite as described in [tests/auth](../tests/auth/README.md).
++The captcha tests cover the native bridge contract, optional fields, trusted
++navigation, answer isolation and header challenges. The transport tests use
++recorded response shapes and inspect actual OkHttp requests: form encoding,
++Unicode and repeated parameters, anonymous preflight/cache/refresh, verification
++continuation, fallback, failure termination and captcha isolation.
++They do not send account credentials or log in to VK.
 +
-+```sh
-+java -jar scripts/apktool.jar b smali --use-aapt2 -p scripts/framework -o /tmp/lite-smali-check.apk
-+```
-+
-+That command alone is **not a complete installable mod build**: the Java changes
-+must also be compiled and exported through the normal `buildVTLDev` pipeline.
++A complete previous captcha-only build passed JDK 17 compilation, Android lint,
++DEX generation, APK assembly and signature verification in GitHub Actions.
++The updated anonymous-session build is checked by the same workflow.
 +
 +On a device, verify image captcha, web captcha, cancellation/back, rotation,
 +network failure, two successive challenges and successful token delivery. Test
@@ -748,12 +1004,15 @@ index 00000000..52f56ac3
 +  `com.vk.id.captcha:vkid-captcha:0.0.16` artifact. The SDK is not added as a runtime
 +  dependency because this application merges Java dex files into a decompiled
 +  APK and contains an older, renamed Kotlin runtime.
++
++- [Official VK 8.193 APK source](https://apkpure.com/vk-music-video-messenger/com.vkontakte.android/download/8.193)
++- [VK official-app certificate in the published SDK](https://github.com/VKCOM/vkid-android-sdk/blob/master/sdk/core/vkid/src/main/java/com/vk/id/internal/auth/app/TrustedProvidersCache.kt)
 diff --git a/scripts/test_auth.sh b/scripts/test_auth.sh
 new file mode 100644
-index 00000000..2a2d6ffc
+index 00000000..d66075fa
 --- /dev/null
 +++ b/scripts/test_auth.sh
-@@ -0,0 +1,19 @@
+@@ -0,0 +1,23 @@
 +#!/usr/bin/env bash
 +set -euo pipefail
 +cd "$(dirname "$0")/.."
@@ -771,8 +1030,12 @@ index 00000000..2a2d6ffc
 +    tests/auth/stubs/ru/vtosters/lite/utils/AndroidUtils.java \
 +    app/src/main/java/ru/vtosters/hooks/CaptchaHook.java \
 +    app/src/main/java/ru/vtosters/lite/ui/activities/WebCaptchaActivity.java \
++    app/src/main/java/ru/vtosters/hooks/ModernAuthFlow.java \
++    app/src/main/java/ru/vtosters/hooks/ModernAuthExecutor.java \
++    tests/auth/ModernAuthFlowTest.java \
 +    tests/auth/CaptchaHookTest.java
 +java -cp "$test_output:$ANDROID_ALL_JAR:$test_libraries" CaptchaHookTest
++java -cp "$test_output:$ANDROID_ALL_JAR:$test_libraries" ModernAuthFlowTest
 diff --git a/tests/auth/CaptchaHookTest.java b/tests/auth/CaptchaHookTest.java
 new file mode 100644
 index 00000000..be8cabeb
@@ -950,17 +1213,119 @@ index 00000000..be8cabeb
 +        CaptchaHook.complete(null, "ignored");
 +    }
 +}
+diff --git a/tests/auth/ModernAuthFlowTest.java b/tests/auth/ModernAuthFlowTest.java
+new file mode 100644
+index 00000000..ca79cffd
+--- /dev/null
++++ b/tests/auth/ModernAuthFlowTest.java
+@@ -0,0 +1,94 @@
++import com.vk.api.sdk.chain.ChainArgs;
++import java.io.IOException;
++import java.util.ArrayList;
++import java.util.List;
++import okhttp3.FormBody;
++import okhttp3.Request;
++import org.json.JSONObject;
++import ru.vtosters.hooks.ModernAuthFlow;
++
++/** Recorded protocol responses only; no credentials, account or VK requests. */
++public final class ModernAuthFlowTest {
++    private static int checks;
++    private static final String LOGIN = "https://oauth.vk.com/token?client_id=2274003&client_secret=test-only"
++            + "&grant_type=password&username=a%2Bb&password=p%26q%3D%D1%8F&2fa_supported=1"
++            + "&supported_ways%5B%5D=push&supported_ways%5B%5D=email&scope=all&scope=offline";
++    private static void check(boolean value) { checks++; if (!value) throw new AssertionError("Check " + checks); }
++    private static String field(Request request, String key) {
++        FormBody body = (FormBody) request.a();
++        for (int i = 0; i < body.c(); i++) if (key.equals(body.a(i))) return body.c(i);
++        return null;
++    }
++    private static final class Server implements ModernAuthFlow.Transport {
++        final List<Request> requests = new ArrayList<>();
++        final String[] replies;
++        Server(String... replies) { this.replies = replies; }
++        public String send(Request request) {
++            check(!request.g().toString().contains("?"));
++            check("POST".equals(request.e()));
++            requests.add(request);
++            if (requests.size() > replies.length) throw new AssertionError("Unexpected retry");
++            return replies[requests.size()-1];
++        }
++    }
++    private static ModernAuthFlow flow(Server server) {
++        return new ModernAuthFlow(server, (error,args) -> { throw new AssertionError("Unexpected captcha"); },
++                "api.vk.com", "5.131", "ru", "device-test");
++    }
++    public static void main(String[] unused) throws Exception {
++        Server server = new Server("{\"response\":{\"token\":\"anon-test\"}}", "{\"access_token\":\"test\"}",
++                "{\"error\":\"need_validation\",\"validation_sid\":\"sid\"}");
++        ModernAuthFlow flow = flow(server);
++        check(flow.execute(LOGIN, new ChainArgs()).contains("access_token"));
++        Request preflight = server.requests.get(0), token = server.requests.get(1);
++        check(preflight.g().toString().equals("https://api.vk.com/method/auth.getAnonymToken"));
++        check("2274003".equals(field(preflight,"client_id")));
++        check("test-only".equals(field(preflight,"client_secret")));
++        check(field(preflight,"password") == null);
++        check(token.g().toString().equals("https://oauth.vk.com/token"));
++        check(field(token,"client_secret") == null && field(token,"client_id") == null);
++        check("anon-test".equals(field(token,"anonymous_token")));
++        check("2274003".equals(field(token,"api_id")));
++        check("device-test".equals(field(token,"device_id")));
++        check("5.131".equals(field(token,"v")));
++        check("a+b".equals(field(token,"username")));
++        check("p&q=я".equals(field(token,"password")));
++        FormBody body = (FormBody)token.a();
++        int scopes=0, ways=0;
++        for(int i=0;i<body.c();i++){ if(body.a(i).equals("scope"))scopes++; if(android.net.Uri.decode(body.a(i)).equals("supported_ways[]"))ways++; }
++        check(scopes==2 && ways==2);
++        ChainArgs image = new ChainArgs(); image.a("answer"); image.b("image-sid");
++        check(flow.execute(LOGIN+"&code=123456&sid=validation", image).contains("need_validation"));
++        check(server.requests.size()==3);
++        check("image-sid".equals(field(server.requests.get(2),"captcha_sid")));
++        check("123456".equals(field(server.requests.get(2),"code")));
++        check("validation".equals(field(server.requests.get(2),"sid")));
++        for(String error : new String[]{"invalid_client","too_many_requests","need_validation","need_captcha"}){
++            Server rejected = new Server("{\"response\":{\"token\":\"anon\"}}", "{\"error\":\""+error+"\"}");
++            check(flow(rejected).execute(LOGIN,new ChainArgs()).contains(error));
++            check(rejected.requests.size()==2);
++        }
++        Server refresh = new Server("{\"response\":{\"token\":\"old\"}}", "{\"error\":\"invalid_anonymous_token\"}",
++                "{\"response\":{\"token\":\"fresh\"}}", "{\"error\":\"anonymous_token_has_expired\"}");
++        check(flow(refresh).execute(LOGIN,new ChainArgs()).contains("anonymous_token_has_expired"));
++        check(refresh.requests.size()==4);
++        check("fresh".equals(field(refresh.requests.get(3),"anonymous_token")));
++        Server fallback = new Server("{\"error\":{\"error_code\":3}}", "{\"token\":\"fallback\"}", "{}");
++        flow(fallback).execute(LOGIN,new ChainArgs());
++        check(fallback.requests.get(1).g().toString().equals("https://oauth.vk.com/get_anonym_token"));
++        check("fallback".equals(field(fallback.requests.get(2),"anonymous_token")));
++        for(String reply:new String[]{"{\"response\":{}}","{\"error\":{\"error_code\":5}}","{\"token\":123}"}) {
++            Server failed = new Server(reply);
++            try {flow(failed).execute(LOGIN,new ChainArgs()); throw new AssertionError("Missing token accepted");}
++            catch(IOException expected){check(failed.requests.size()==1);}
++        }
++        Server challenged = new Server("{\"error\":{\"error_code\":14,\"captcha_sid\":\"anon-sid\",\"captcha_img\":\"https://vk.com/image\"}}",
++                "{\"response\":{\"token\":\"anon\"}}", "{}");
++        new ModernAuthFlow(challenged,(error,args)->{args.a("human-answer");args.b(error.getString("captcha_sid"));},
++                "api.vk.com","5.131","ru","device-test").execute(LOGIN,new ChainArgs());
++        check("human-answer".equals(field(challenged.requests.get(1),"captcha_key")));
++        check(field(challenged.requests.get(2),"captcha_key")==null);
++        check(!ModernAuthFlow.needsAnonymousRefresh(new JSONObject("{\"error\":\"invalid_client\",\"error_type\":\"too_much_tries\"}")));
++        System.out.println("Modern auth: " + checks + " checks passed");
++    }
++}
 diff --git a/tests/auth/README.md b/tests/auth/README.md
 new file mode 100644
-index 00000000..bbef04c2
+index 00000000..388cdcf4
 --- /dev/null
 +++ b/tests/auth/README.md
-@@ -0,0 +1,16 @@
-+# Captcha regression tests
+@@ -0,0 +1,18 @@
++# Authentication regression tests
 +
 +These tests exercise the real hook with Android's Java implementations of Uri,
 +Bundle and JSONObject from Robolectric's `android-all` jar. They do not contact VK,
-+solve a challenge, or test WebView rendering.
++solve a challenge, or test WebView rendering. `ModernAuthFlowTest` uses fake
++server replies to inspect real OkHttp requests and verify preflight, form
++encoding, session reuse, token refresh, captcha isolation and rejection behavior.
 +
 +Run from the repository root with a JDK and these external artifacts:
 +
