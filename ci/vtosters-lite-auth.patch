@@ -1,0 +1,988 @@
+diff --git a/smali/AndroidManifest.xml b/smali/AndroidManifest.xml
+index 216cfb71..7a56b2dc 100644
+--- a/smali/AndroidManifest.xml
++++ b/smali/AndroidManifest.xml
+@@ -1569,6 +1569,12 @@
+                 <category android:name="android.intent.category.DEFAULT" />
+             </intent-filter>
+         </activity>
++        <activity
++            android:name="ru.vtosters.lite.ui.activities.WebCaptchaActivity"
++            android:exported="false"
++            android:configChanges="keyboard|keyboardHidden|orientation|screenSize"
++            android:label="VK CAPTCHA"
++            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+         <activity
+             android:name="com.vtosters.lite.CaptchaActivity"
+             android:configChanges="keyboard|keyboardHidden|orientation|screenSize"
+diff --git a/smali/smali_classes2/com/vk/api/sdk/chain/MethodChainCall.smali b/smali/smali_classes2/com/vk/api/sdk/chain/MethodChainCall.smali
+index 4832dde1..654e6e9a 100644
+--- a/smali/smali_classes2/com/vk/api/sdk/chain/MethodChainCall.smali
++++ b/smali/smali_classes2/com/vk/api/sdk/chain/MethodChainCall.smali
+@@ -84,38 +84,10 @@
+         }
+     .end annotation
+ 
+-    .line 1
+-    invoke-virtual {p1}, Lcom/vk/api/sdk/chain/ChainArgs;->d()Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_0
+-
+-    .line 2
+     iget-object v0, p0, Lcom/vk/api/sdk/chain/MethodChainCall;->c:Lcom/vk/api/sdk/okhttp/OkHttpMethodCall$a;
+ 
+-    .line 3
+-    invoke-virtual {p1}, Lcom/vk/api/sdk/chain/ChainArgs;->b()Ljava/lang/String;
+-
+-    move-result-object v1
+-
+-    const-string v2, "captcha_sid"
+-
+-    invoke-virtual {v0, v2, v1}, Lcom/vk/api/sdk/okhttp/OkHttpMethodCall$a;->a(Ljava/lang/String;Ljava/lang/String;)Lcom/vk/api/sdk/okhttp/OkHttpMethodCall$a;
++    invoke-static {v0, p1}, Lru/vtosters/hooks/CaptchaHook;->applyToCall(Lcom/vk/api/sdk/okhttp/OkHttpMethodCall$a;Lcom/vk/api/sdk/chain/ChainArgs;)V
+ 
+-    move-result-object v0
+-
+-    .line 4
+-    invoke-virtual {p1}, Lcom/vk/api/sdk/chain/ChainArgs;->a()Ljava/lang/String;
+-
+-    move-result-object v1
+-
+-    const-string v2, "captcha_key"
+-
+-    invoke-virtual {v0, v2, v1}, Lcom/vk/api/sdk/okhttp/OkHttpMethodCall$a;->a(Ljava/lang/String;Ljava/lang/String;)Lcom/vk/api/sdk/okhttp/OkHttpMethodCall$a;
+-
+-    .line 5
+-    :cond_0
+     invoke-virtual {p1}, Lcom/vk/api/sdk/chain/ChainArgs;->c()Z
+ 
+     move-result p1
+diff --git a/smali/smali_classes2/com/vk/api/sdk/chain/ValidationHandlerChainCall.smali b/smali/smali_classes2/com/vk/api/sdk/chain/ValidationHandlerChainCall.smali
+index 120830c0..f3f02359 100644
+--- a/smali/smali_classes2/com/vk/api/sdk/chain/ValidationHandlerChainCall.smali
++++ b/smali/smali_classes2/com/vk/api/sdk/chain/ValidationHandlerChainCall.smali
+@@ -177,6 +177,15 @@
+ .method private final a(Lcom/vk/api/sdk/exceptions/VKApiExecutionException;Lcom/vk/api/sdk/chain/ChainArgs;)V
+     .locals 2
+ 
++    invoke-static {p1, p2}, Lru/vtosters/hooks/CaptchaHook;->handle(Lcom/vk/api/sdk/exceptions/VKApiExecutionException;Lcom/vk/api/sdk/chain/ChainArgs;)Z
++
++    move-result v0
++
++    if-eqz v0, :legacy_captcha
++
++    return-void
++
++    :legacy_captcha
+     .line 11
+     invoke-virtual {p1}, Lcom/vk/api/sdk/exceptions/VKApiExecutionException;->b()Ljava/lang/String;
+ 
+diff --git a/smali/smali_classes2/com/vk/api/sdk/internal/VKErrorUtils.smali b/smali/smali_classes2/com/vk/api/sdk/internal/VKErrorUtils.smali
+index 0d8aad8f..eb5ad407 100644
+--- a/smali/smali_classes2/com/vk/api/sdk/internal/VKErrorUtils.smali
++++ b/smali/smali_classes2/com/vk/api/sdk/internal/VKErrorUtils.smali
+@@ -399,23 +399,9 @@
+ 
+     .line 14
+     :cond_2
+-    new-instance v5, Landroid/os/Bundle;
+-
+-    invoke-direct {v5}, Landroid/os/Bundle;-><init>()V
+-
+-    .line 15
+-    invoke-virtual {p1, v2}, Lorg/json/JSONObject;->getString(Ljava/lang/String;)Ljava/lang/String;
+-
+-    move-result-object v1
++    invoke-static {p1}, Lru/vtosters/hooks/CaptchaHook;->extras(Lorg/json/JSONObject;)Landroid/os/Bundle;
+ 
+-    invoke-virtual {v5, v2, v1}, Landroid/os/Bundle;->putString(Ljava/lang/String;Ljava/lang/String;)V
+-
+-    .line 16
+-    invoke-virtual {p1, v0}, Lorg/json/JSONObject;->getString(Ljava/lang/String;)Ljava/lang/String;
+-
+-    move-result-object v1
+-
+-    invoke-virtual {v5, v0, v1}, Landroid/os/Bundle;->putString(Ljava/lang/String;Ljava/lang/String;)V
++    move-result-object v5
+ 
+     goto :goto_0
+ 
+diff --git a/smali/smali_classes2/com/vk/auth/api/VKAuthOkHttpExecutor.smali b/smali/smali_classes2/com/vk/auth/api/VKAuthOkHttpExecutor.smali
+index 4011b3db..21881863 100644
+--- a/smali/smali_classes2/com/vk/auth/api/VKAuthOkHttpExecutor.smali
++++ b/smali/smali_classes2/com/vk/auth/api/VKAuthOkHttpExecutor.smali
+@@ -18,76 +18,14 @@
+ .method public a(Lcom/vk/auth/api/b/OAuthHttpUrlPostCall;Lcom/vk/api/sdk/chain/ChainArgs;)Ljava/lang/String;
+     .locals 4
+ 
+-    if-eqz p2, :cond_0
+-
+-    .line 1
+-    invoke-virtual {p2}, Lcom/vk/api/sdk/chain/ChainArgs;->d()Z
+-
+-    move-result v0
+-
+-    if-eqz v0, :cond_0
+-
+-    .line 2
+     invoke-virtual {p1}, Lcom/vk/auth/api/b/OAuthHttpUrlPostCall;->c()Ljava/lang/String;
+ 
+     move-result-object v0
+ 
+-    invoke-static {v0}, Landroid/net/Uri;->parse(Ljava/lang/String;)Landroid/net/Uri;
+-
+-    move-result-object v0
+-
+-    .line 3
+-    invoke-virtual {v0}, Landroid/net/Uri;->buildUpon()Landroid/net/Uri$Builder;
+-
+-    move-result-object v0
+-
+-    .line 4
+-    invoke-virtual {p2}, Lcom/vk/api/sdk/chain/ChainArgs;->a()Ljava/lang/String;
+-
+-    move-result-object v1
+-
+-    const-string v2, "captcha_key"
+-
+-    invoke-virtual {v0, v2, v1}, Landroid/net/Uri$Builder;->appendQueryParameter(Ljava/lang/String;Ljava/lang/String;)Landroid/net/Uri$Builder;
+-
+-    move-result-object v0
+-
+-    .line 5
+-    invoke-virtual {p2}, Lcom/vk/api/sdk/chain/ChainArgs;->b()Ljava/lang/String;
+-
+-    move-result-object p2
+-
+-    const-string v1, "captcha_sid"
+-
+-    invoke-virtual {v0, v1, p2}, Landroid/net/Uri$Builder;->appendQueryParameter(Ljava/lang/String;Ljava/lang/String;)Landroid/net/Uri$Builder;
+-
+-    move-result-object p2
+-
+-    .line 6
+-    invoke-virtual {p2}, Landroid/net/Uri$Builder;->build()Landroid/net/Uri;
+-
+-    move-result-object p2
+-
+-    .line 7
+-    invoke-virtual {p2}, Landroid/net/Uri;->toString()Ljava/lang/String;
+-
+-    move-result-object p2
+-
+-    goto :goto_0
+-
+-    .line 8
+-    :cond_0
+-    invoke-virtual {p1}, Lcom/vk/auth/api/b/OAuthHttpUrlPostCall;->c()Ljava/lang/String;
++    invoke-static {v0, p2}, Lru/vtosters/hooks/CaptchaHook;->applyToUrl(Ljava/lang/String;Lcom/vk/api/sdk/chain/ChainArgs;)Ljava/lang/String;
+ 
+     move-result-object p2
+ 
+-    :goto_0
+-    const-string v0, "if (chainArgs != null &&\u2026       call.url\n        }"
+-
+-    .line 9
+-    invoke-static {p2, v0}, Lkotlin/jvm/internal/Intrinsics;->a(Ljava/lang/Object;Ljava/lang/String;)V
+-
+-    .line 10
+     new-instance v0, Lokhttp3/Request$a;
+ 
+     invoke-direct {v0}, Lokhttp3/Request$a;-><init>()V
+@@ -137,6 +75,17 @@
+ 
+     move-result-object p1
+ 
++    invoke-static {p1}, Lru/vtosters/hooks/CaptchaHook;->challengeRequest(Lokhttp3/Response;)Lokhttp3/Request;
++
++    move-result-object p2
++
++    if-eqz p2, :auth_response
++
++    invoke-virtual {p0, p2, v0, v1}, Lcom/vk/api/sdk/okhttp/OkHttpExecutor;->a(Lokhttp3/Request;J)Lokhttp3/Response;
++
++    move-result-object p1
++
++    :auth_response
+     invoke-virtual {p0, p1}, Lcom/vk/api/sdk/okhttp/OkHttpExecutor;->a(Lokhttp3/Response;)Ljava/lang/String;
+ 
+     move-result-object p1
+@@ -199,5 +148,16 @@
+ 
+     move-result-object p1
+ 
++    invoke-static {p1}, Lru/vtosters/hooks/CaptchaHook;->challengeRequest(Lokhttp3/Response;)Lokhttp3/Request;
++
++    move-result-object v0
++
++    if-eqz v0, :web_auth_response
++
++    invoke-virtual {p0, v0, v1, v2}, Lcom/vk/api/sdk/okhttp/OkHttpExecutor;->a(Lokhttp3/Request;J)Lokhttp3/Response;
++
++    move-result-object p1
++
++    :web_auth_response
+     return-object p1
+ .end method
+diff --git a/smali/smali_classes2/com/vk/auth/api/c/OAuthHttpUrlChainCall.smali b/smali/smali_classes2/com/vk/auth/api/c/OAuthHttpUrlChainCall.smali
+index b11da6fc..70920057 100644
+--- a/smali/smali_classes2/com/vk/auth/api/c/OAuthHttpUrlChainCall.smali
++++ b/smali/smali_classes2/com/vk/auth/api/c/OAuthHttpUrlChainCall.smali
+@@ -110,6 +110,8 @@
+ 
+     invoke-direct {v2, v1}, Lorg/json/JSONObject;-><init>(Ljava/lang/String;)V
+ 
++    invoke-static {v2}, Lru/vtosters/hooks/CaptchaHook;->checkOAuthCaptcha(Lorg/json/JSONObject;)V
++
+     const/4 v4, 0x0
+ 
+     const-string v5, "error"
+@@ -203,27 +205,9 @@
+ 
+     .line 15
+     :cond_2
+-    new-instance v11, Landroid/os/Bundle;
+-
+-    invoke-direct {v11}, Landroid/os/Bundle;-><init>()V
+-
+-    const-string v1, "captcha_sid"
+-
+-    .line 16
+-    invoke-virtual {v2, v1}, Lorg/json/JSONObject;->getString(Ljava/lang/String;)Ljava/lang/String;
+-
+-    move-result-object v3
+-
+-    invoke-virtual {v11, v1, v3}, Landroid/os/Bundle;->putString(Ljava/lang/String;Ljava/lang/String;)V
+-
+-    const-string v1, "captcha_img"
+-
+-    .line 17
+-    invoke-virtual {v2, v1}, Lorg/json/JSONObject;->getString(Ljava/lang/String;)Ljava/lang/String;
+-
+-    move-result-object v2
++    invoke-static {v2}, Lru/vtosters/hooks/CaptchaHook;->extras(Lorg/json/JSONObject;)Landroid/os/Bundle;
+ 
+-    invoke-virtual {v11, v1, v2}, Landroid/os/Bundle;->putString(Ljava/lang/String;Ljava/lang/String;)V
++    move-result-object v11
+ 
+     .line 18
+     new-instance v1, Lcom/vk/api/sdk/exceptions/VKApiExecutionException;
+diff --git a/app/src/main/java/ru/vtosters/hooks/CaptchaHook.java b/app/src/main/java/ru/vtosters/hooks/CaptchaHook.java
+new file mode 100644
+index 00000000..d788d821
+--- /dev/null
++++ b/app/src/main/java/ru/vtosters/hooks/CaptchaHook.java
+@@ -0,0 +1,192 @@
++package ru.vtosters.hooks;
++
++import android.content.Intent;
++import android.net.Uri;
++import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
++import com.vk.api.sdk.chain.ChainArgs;
++import com.vk.api.sdk.exceptions.VKApiExecutionException;
++import com.vk.api.sdk.okhttp.OkHttpMethodCall;
++import org.json.JSONObject;
++import okhttp3.Request;
++import okhttp3.Response;
++import ru.vtosters.lite.ui.activities.WebCaptchaActivity;
++import ru.vtosters.lite.utils.AndroidUtils;
++
++import java.util.Collections;
++import java.util.HashMap;
++import java.util.Map;
++import java.util.UUID;
++import java.util.WeakHashMap;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.TimeUnit;
++import java.io.IOException;
++import java.net.URI;
++
++/** Bridges redirect_uri challenges into the old SDK's per-request retry chain. */
++public final class CaptchaHook {
++    private static final Map<ChainArgs, String> SOLUTIONS =
++            Collections.synchronizedMap(new WeakHashMap<>());
++    private static final Map<String, Session> SESSIONS = new ConcurrentHashMap<>();
++    private static final String[] ANSWER_KEYS = {"captcha_sid", "captcha_key", "success_token"};
++
++    private CaptchaHook() {}
++
++    public static Bundle extras(JSONObject error) {
++        Bundle result = new Bundle();
++        for (String key : new String[]{"captcha_sid", "captcha_img", "redirect_uri"}) {
++            Object value = error.opt(key);
++            if (value instanceof String) result.putString(key, (String) value);
++        }
++        return result;
++    }
++
++    public static void checkOAuthCaptcha(JSONObject response) throws VKApiExecutionException {
++        JSONObject error = response.optJSONObject("error");
++        if (error != null && error.optInt("error_code") == 14) {
++            throw new VKApiExecutionException(14, "oauth", false, "need_captcha", extras(error), null, null);
++        }
++    }
++
++    /** Header challenges precede JSON OAuth errors. Retry only the original request. */
++    public static Request challengeRequest(Response response) throws IOException, InterruptedException {
++        if (!"required".equals(response.a("X-Challenge"))) return null;
++        String challenge = response.a("X-Challenge-Url");
++        Request original = response.o();
++        response.close();
++        if (challenge == null || challenge.isEmpty()) throw new IOException("Missing VK challenge URL");
++        String redirect;
++        try {
++            redirect = URI.create(original.g().toString()).resolve(challenge).toString();
++        } catch (IllegalArgumentException exception) {
++            throw new IOException("Invalid VK challenge URL", exception);
++        }
++        String token = request(redirect);
++        if (token == null || token.isEmpty()) throw new IOException("VK challenge cancelled or unavailable");
++        return original.f().b("X-Challenge-Solution", token).a();
++    }
++
++    public static boolean handle(VKApiExecutionException error, ChainArgs args)
++            throws VKApiExecutionException, InterruptedException {
++        SOLUTIONS.remove(args);
++        Bundle extra = error.h();
++        String redirect = extra == null ? null : extra.getString("redirect_uri");
++        if (redirect == null || redirect.isEmpty()) return false;
++        String token = request(redirect);
++        if (token == null || token.isEmpty()) throw error;
++        // Clear a previous image answer if the server switched challenge types.
++        args.a("");
++        args.b("");
++        SOLUTIONS.put(args, token);
++        return true;
++    }
++
++    public static String request(String redirect) throws InterruptedException {
++        if (!isTrustedUrl(redirect) || Looper.myLooper() == Looper.getMainLooper()) return null;
++        String id = UUID.randomUUID().toString();
++        Session session = new Session(redirect);
++        SESSIONS.put(id, session);
++        try {
++            new Handler(Looper.getMainLooper()).post(() -> {
++                if (!isPending(id)) return;
++                try {
++                    Intent intent = new Intent(AndroidUtils.getGlobalContext(), WebCaptchaActivity.class);
++                    intent.putExtra("captcha_session", id);
++                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
++                    AndroidUtils.getGlobalContext().startActivity(intent);
++                } catch (RuntimeException exception) {
++                    complete(id, null);
++                }
++            });
++            if (!session.done.await(5, TimeUnit.MINUTES)) return null;
++            return session.token;
++        } finally {
++            SESSIONS.remove(id);
++        }
++    }
++
++    public static String redirect(String id) {
++        Session session = id == null ? null : SESSIONS.get(id);
++        return session == null ? null : session.redirect;
++    }
++
++    public static boolean isPending(String id) {
++        Session session = id == null ? null : SESSIONS.get(id);
++        return session != null && session.done.getCount() != 0;
++    }
++
++    public static void complete(String id, String token) {
++        Session session = id == null ? null : SESSIONS.get(id);
++        if (session != null) {
++            synchronized (session) {
++                if (session.done.getCount() == 0) return;
++                session.token = token;
++                session.done.countDown();
++            }
++        }
++    }
++
++    public static boolean isTrustedUrl(String url) {
++        if (url == null) return false;
++        Uri uri = Uri.parse(url);
++        String host = uri.getHost();
++        if (!"https".equalsIgnoreCase(uri.getScheme()) || host == null
++                || uri.getUserInfo() != null || (uri.getPort() != -1 && uri.getPort() != 443)) return false;
++        host = host.toLowerCase(java.util.Locale.ROOT);
++        for (String domain : new String[]{"vk.com", "vk.ru", "vkcaptcha.ru"}) {
++            if (host.equals(domain) || host.endsWith("." + domain)) return true;
++        }
++        return false;
++    }
++
++    private static Map<String, String> answer(ChainArgs args) {
++        Map<String, String> answer = new HashMap<>();
++        if (args == null) return answer;
++        String token = SOLUTIONS.get(args);
++        if (token != null) {
++            answer.put("success_token", token);
++        } else if (args.d()) {
++            answer.put("captcha_sid", args.b());
++            answer.put("captcha_key", args.a());
++        }
++        return answer;
++    }
++
++    public static String applyToUrl(String url, ChainArgs args) {
++        Map<String, String> answer = answer(args);
++        if (answer.isEmpty()) return url;
++        Uri source = Uri.parse(url);
++        Uri.Builder builder = source.buildUpon().clearQuery();
++        for (String key : source.getQueryParameterNames()) {
++            if (isAnswerKey(key)) continue;
++            for (String value : source.getQueryParameters(key)) builder.appendQueryParameter(key, value);
++        }
++        for (Map.Entry<String, String> entry : answer.entrySet()) {
++            builder.appendQueryParameter(entry.getKey(), entry.getValue());
++        }
++        return builder.build().toString();
++    }
++
++    public static void applyToCall(OkHttpMethodCall.a call, ChainArgs args) {
++        Map<String, String> answer = answer(args);
++        if (answer.isEmpty()) return;
++        // The builder survives retries: remove the preceding challenge's answer.
++        for (String key : ANSWER_KEYS) call.b().remove(key);
++        call.a(answer);
++    }
++
++    private static boolean isAnswerKey(String key) {
++        for (String candidate : ANSWER_KEYS) if (candidate.equals(key)) return true;
++        return false;
++    }
++
++    private static final class Session {
++        final String redirect;
++        final CountDownLatch done = new CountDownLatch(1);
++        volatile String token;
++
++        Session(String redirect) { this.redirect = redirect; }
++    }
++}
+diff --git a/app/src/main/java/ru/vtosters/lite/ui/activities/WebCaptchaActivity.java b/app/src/main/java/ru/vtosters/lite/ui/activities/WebCaptchaActivity.java
+new file mode 100644
+index 00000000..45dee232
+--- /dev/null
++++ b/app/src/main/java/ru/vtosters/lite/ui/activities/WebCaptchaActivity.java
+@@ -0,0 +1,202 @@
++package ru.vtosters.lite.ui.activities;
++
++import android.app.Activity;
++import android.hardware.Sensor;
++import android.hardware.SensorEvent;
++import android.hardware.SensorEventListener;
++import android.hardware.SensorManager;
++import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
++import android.webkit.JavascriptInterface;
++import android.webkit.WebResourceError;
++import android.webkit.WebResourceRequest;
++import android.webkit.WebResourceResponse;
++import android.webkit.WebSettings;
++import android.webkit.WebView;
++import android.webkit.WebViewClient;
++import org.json.JSONException;
++import org.json.JSONArray;
++import org.json.JSONObject;
++import ru.vtosters.hooks.CaptchaHook;
++
++/** Displays VK's challenge for the user; never solves or skips it automatically. */
++public final class WebCaptchaActivity extends Activity implements SensorEventListener {
++    private String sessionId;
++    private WebView webView;
++    private final Handler handler = new Handler(Looper.getMainLooper());
++    private final Runnable expiry = this::finish;
++    private SensorManager sensors;
++    private JSONObject sensorConfig;
++    private final java.util.Map<Integer, String> sensorNames = new java.util.HashMap<>();
++    private boolean resumed;
++
++    @Override
++    protected void onCreate(Bundle state) {
++        super.onCreate(state);
++        sessionId = getIntent().getStringExtra("captcha_session");
++        String redirect = CaptchaHook.redirect(sessionId);
++        if (!CaptchaHook.isPending(sessionId) || !CaptchaHook.isTrustedUrl(redirect)) {
++            finish();
++            return;
++        }
++        setTitle("VK CAPTCHA");
++        sensors = (SensorManager) getSystemService(SENSOR_SERVICE);
++        webView = new WebView(this);
++        WebSettings settings = webView.getSettings();
++        settings.setJavaScriptEnabled(true);
++        settings.setDomStorageEnabled(true);
++        settings.setAllowFileAccess(false);
++        settings.setAllowContentAccess(false);
++        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
++        webView.addJavascriptInterface(new Bridge(), "AndroidBridge");
++        webView.setWebViewClient(new WebViewClient() {
++            @Override
++            public boolean shouldOverrideUrlLoading(WebView view, String url) {
++                return !CaptchaHook.isTrustedUrl(url);
++            }
++
++            @Override
++            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
++                return !CaptchaHook.isTrustedUrl(request.getUrl().toString());
++            }
++
++            @Override
++            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
++                if (request.isForMainFrame()) finish();
++            }
++
++            @Override
++            public void onReceivedError(WebView view, int code, String description, String url) {
++                finish();
++            }
++
++            @Override
++            public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
++                if (request.isForMainFrame()) finish();
++            }
++        });
++        setContentView(webView);
++        webView.loadUrl(redirect);
++        handler.postDelayed(expiry, 5 * 60 * 1000L);
++    }
++
++    @Override
++    protected void onResume() {
++        super.onResume();
++        resumed = true;
++        startSensors();
++    }
++
++    @Override
++    protected void onPause() {
++        resumed = false;
++        stopSensors();
++        super.onPause();
++    }
++
++    private void stopSensors() {
++        if (sensors != null) sensors.unregisterListener(this);
++        sensorNames.clear();
++    }
++
++    private void startSensors() {
++        stopSensors();
++        if (!resumed || sensors == null || sensorConfig == null || !CaptchaHook.isPending(sessionId)) return;
++        JSONArray requested = sensorConfig.optJSONArray("bridge_sensors_list");
++        if (requested == null) return;
++        int period = Math.max(20, Math.min(1000, sensorConfig.optInt("period", 100)));
++        for (int i = 0; i < requested.length(); i++) {
++            String name = requested.optString(i);
++            int type;
++            switch (name) {
++                case "accelerometer": type = Sensor.TYPE_ACCELEROMETER; break;
++                case "gyroscope": type = Sensor.TYPE_GYROSCOPE; break;
++                case "motion": type = Sensor.TYPE_ROTATION_VECTOR; break;
++                default: continue;
++            }
++            Sensor sensor = sensors.getDefaultSensor(type);
++            if (sensor != null && sensors.registerListener(this, sensor, period * 1000, handler)) {
++                sensorNames.put(type, name);
++            }
++        }
++    }
++
++    @Override
++    public void onSensorChanged(SensorEvent event) {
++        String name = sensorNames.get(event.sensor.getType());
++        if (!resumed || name == null || event.values.length < 3 || webView == null) return;
++        try {
++            JSONObject values = new JSONObject();
++            String[] axes = "motion".equals(name)
++                    ? new String[]{"alpha", "beta", "gamma"} : new String[]{"x", "y", "z"};
++            for (int i = 0; i < axes.length; i++) values.put(axes[i], (double) event.values[i]);
++            JSONObject data = new JSONObject().put("detail", new JSONObject().put(name, values));
++            webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('VKCaptchaListenSensorsChanged',"
++                    + data + "))", null);
++        } catch (JSONException ignored) {
++            // Never substitute manufactured readings for unavailable sensor data.
++        }
++    }
++
++    @Override
++    public void onAccuracyChanged(Sensor sensor, int accuracy) {}
++
++    @Override
++    protected void onDestroy() {
++        handler.removeCallbacks(expiry);
++        stopSensors();
++        if (!isChangingConfigurations()) CaptchaHook.complete(sessionId, null);
++        if (webView != null) {
++            webView.removeJavascriptInterface("AndroidBridge");
++            webView.stopLoading();
++            webView.destroy();
++        }
++        super.onDestroy();
++    }
++
++    /** Names and token payload follow VK Captcha's AndroidBridge contract. */
++    public final class Bridge {
++        @JavascriptInterface
++        public void VKCaptchaGetResult(String data) {
++            try {
++                Object value = new JSONObject(data).opt("token");
++                if (!(value instanceof String) || ((String) value).isEmpty()) return;
++                runOnUiThread(() -> {
++                    if (isFinishing() || isDestroyed()) return;
++                    CaptchaHook.complete(sessionId, (String) value);
++                    finish();
++                });
++            } catch (JSONException | NullPointerException ignored) {
++                // An invalid message must not turn into a successful challenge.
++            }
++        }
++
++        @JavascriptInterface
++        public void VKCaptchaCloseCaptcha(String data) {
++            runOnUiThread(WebCaptchaActivity.this::finish);
++        }
++
++        @JavascriptInterface
++        public void VKCaptchaListenSensorsStart(String data) {
++            try {
++                JSONObject config = new JSONObject(data);
++                runOnUiThread(() -> {
++                    if (isFinishing() || isDestroyed()) return;
++                    sensorConfig = config;
++                    startSensors();
++                });
++            } catch (JSONException | NullPointerException ignored) {
++                // Ignore malformed bridge requests.
++            }
++        }
++
++        @JavascriptInterface
++        public void VKCaptchaListenSensorsStop(String data) {
++            runOnUiThread(() -> {
++                sensorConfig = null;
++                stopSensors();
++            });
++        }
++    }
++}
+diff --git a/docs/authentication.md b/docs/authentication.md
+new file mode 100644
+index 00000000..52f56ac3
+--- /dev/null
++++ b/docs/authentication.md
+@@ -0,0 +1,67 @@
++# Authentication and captcha compatibility
++
++## Confirmed in this repository
++
++The password flow uses `OAuthHttpUrlChainCall`. Previously `need_captcha`
++unconditionally read both `captcha_sid` and `captcha_img` using `getString`.
++An answer containing only a web `redirect_uri` therefore failed before showing
++a challenge. `VKErrorUtils` made the same assumption for API error 14.
++
++`BaseAuthPresenter.b(AuthAnswer)` maps the server's `error_type=too_much_tries`
++to the localized attempt-limit message. This message does not establish that a
++local counter or an expired client secret caused the rejection. The original
++response is needed to distinguish these cases.
++
++## Changes
++
++- Copy optional captcha fields without requiring an image.
++- Recognize both OAuth `need_captcha` and nested API error 14 during login.
++- Display a returned HTTPS challenge on VK domains in a non-exported WebView
++  Activity. The `AndroidBridge.VKCaptchaGetResult` callback accepts the user's
++  completion token. Closing, load failure, interruption and a five-minute timeout
++  terminate the wait without a successful result.
++- Retry the same OAuth/API chain with `success_token`. Image captchas continue
++  to use `captcha_sid` and `captcha_key`. Answers are isolated by request chain,
++  and stale answers are removed when switching challenge types.
++- Handle `X-Challenge: required` / `X-Challenge-Url` before parsing an OAuth
++  response, then retry the original request once with `X-Challenge-Solution`.
++  This does not loop on a persistent challenge or retry an attempt-limit error.
++
++No client IDs or secrets were replaced. No account credentials were used during
++development. A plain server rejection without a challenge remains a rejection;
++this patch does not restore a revoked password grant or implement a new VK ID
++authorization flow or device attestation.
++
++## Verification and remaining device checks
++
++The standalone regression suite is documented in [tests/auth](../tests/auth/README.md).
++The 54 regression checks passed, and Apktool assembled the modified smali and
++manifest/resources successfully. Full Gradle compilation was attempted with JDK
++17 and Android SDK 32, but project configuration stopped with `NDK is not installed`.
++Smali syntax and manifest/resources can also be checked with:
++
++```sh
++java -jar scripts/apktool.jar b smali --use-aapt2 -p scripts/framework -o /tmp/lite-smali-check.apk
++```
++
++That command alone is **not a complete installable mod build**: the Java changes
++must also be compiled and exported through the normal `buildVTLDev` pipeline.
++
++On a device, verify image captcha, web captcha, cancellation/back, rotation,
++network failure, two successive challenges and successful token delivery. Test
++both login and a normal API request. The native sensor bridge reads only the
++requested accelerometer, gyroscope and rotation-vector sensors while the captcha
++Activity is resumed, and unregisters on pause/close. Hardware sensor behavior and
++any domain outside the explicit VK allowlist need device verification.
++No real login or interactive challenge was available in this environment, so a
++successful sign-in, and resolution of `too_much_tries`, are not verified.
++
++## Protocol references
++
++- [VK Captcha Android result contract](https://cloud.vk.ru/docs/en/security/captcha/concepts/reference-sdk/reference-sdk-android)
++- [VK ID SDK error-14 retry](https://github.com/VKCOM/vkid-android-sdk/blob/master/sdk/core/network/src/main/kotlin/com/vk/id/network/http/captcha/Error14HandlingInterceptor.kt)
++- [VK ID SDK header challenge retry](https://github.com/VKCOM/vkid-android-sdk/blob/master/sdk/core/network/src/main/kotlin/com/vk/id/network/http/captcha/HitmanChallengeHandlingInterceptor.kt)
++- Native bridge callback names were checked against VK's published
++  `com.vk.id.captcha:vkid-captcha:0.0.16` artifact. The SDK is not added as a runtime
++  dependency because this application merges Java dex files into a decompiled
++  APK and contains an older, renamed Kotlin runtime.
+diff --git a/scripts/test_auth.sh b/scripts/test_auth.sh
+new file mode 100644
+index 00000000..2a2d6ffc
+--- /dev/null
++++ b/scripts/test_auth.sh
+@@ -0,0 +1,19 @@
++#!/usr/bin/env bash
++set -euo pipefail
++cd "$(dirname "$0")/.."
++: "${ANDROID_JAR:?Set ANDROID_JAR to Android SDK platform 32 android.jar}"
++: "${ANDROID_ALL_JAR:?Set ANDROID_ALL_JAR to Robolectric android-all 12.1 jar}"
++test_output=$(mktemp -d)
++trap 'rm -rf "$test_output"' EXIT
++test_libraries=$(find app/libs -maxdepth 1 -name '*.jar' -printf '%p:' | sed 's/:$//')
++compiler=(javac)
++if [[ -n "${ECJ_JAR:-}" ]]; then
++    compiler=(java -jar "$ECJ_JAR")
++fi
++"${compiler[@]}" -source 8 -target 8 -proc:none \
++    -cp "$ANDROID_JAR:$test_libraries" -sourcepath tests/auth/stubs -d "$test_output" \
++    tests/auth/stubs/ru/vtosters/lite/utils/AndroidUtils.java \
++    app/src/main/java/ru/vtosters/hooks/CaptchaHook.java \
++    app/src/main/java/ru/vtosters/lite/ui/activities/WebCaptchaActivity.java \
++    tests/auth/CaptchaHookTest.java
++java -cp "$test_output:$ANDROID_ALL_JAR:$test_libraries" CaptchaHookTest
+diff --git a/tests/auth/CaptchaHookTest.java b/tests/auth/CaptchaHookTest.java
+new file mode 100644
+index 00000000..be8cabeb
+--- /dev/null
++++ b/tests/auth/CaptchaHookTest.java
+@@ -0,0 +1,171 @@
++import android.net.Uri;
++import android.os.Bundle;
++import com.vk.api.sdk.chain.ChainArgs;
++import com.vk.api.sdk.exceptions.VKApiExecutionException;
++import com.vk.api.sdk.okhttp.OkHttpMethodCall;
++import org.json.JSONObject;
++import okhttp3.Protocol;
++import okhttp3.Request;
++import okhttp3.Response;
++import okhttp3.ResponseBody;
++import ru.vtosters.hooks.CaptchaHook;
++
++import java.lang.reflect.Constructor;
++import java.lang.reflect.Field;
++import java.util.Map;
++
++/** Standalone regression tests, without a VK account or network requests. */
++public final class CaptchaHookTest {
++    private static int checks;
++
++    private static void check(boolean condition) {
++        checks++;
++        if (!condition) throw new AssertionError("Check " + checks + " failed");
++    }
++
++    @SuppressWarnings("unchecked")
++    private static Map<ChainArgs, String> solutions() throws Exception {
++        Field field = CaptchaHook.class.getDeclaredField("SOLUTIONS");
++        field.setAccessible(true);
++        return (Map<ChainArgs, String>) field.get(null);
++    }
++
++    public static void main(String[] args) throws Exception {
++        Bundle web = CaptchaHook.extras(new JSONObject("{\"redirect_uri\":\"https://vk.com/captcha\"}"));
++        check("https://vk.com/captcha".equals(web.getString("redirect_uri")));
++        check(!web.containsKey("captcha_img"));
++        Bundle legacy = CaptchaHook.extras(new JSONObject("{\"captcha_sid\":\"123\",\"captcha_img\":\"https://vk.com/image\"}"));
++        check("123".equals(legacy.getString("captcha_sid")));
++        check("https://vk.com/image".equals(legacy.getString("captcha_img")));
++        check(CaptchaHook.extras(new JSONObject("{\"redirect_uri\":null,\"captcha_img\":7}")).isEmpty());
++
++        try {
++            CaptchaHook.checkOAuthCaptcha(new JSONObject("{\"error\":{\"error_code\":14,\"redirect_uri\":\"https://vk.com/captcha\"}}"));
++            throw new AssertionError("Nested captcha was ignored");
++        } catch (VKApiExecutionException error) {
++            check(error.d() == 14);
++            check("https://vk.com/captcha".equals(error.h().getString("redirect_uri")));
++        }
++        CaptchaHook.checkOAuthCaptcha(new JSONObject("{\"error\":\"invalid_client\",\"error_type\":\"too_much_tries\"}"));
++        CaptchaHook.checkOAuthCaptcha(new JSONObject("{\"error\":{\"error_code\":5}}"));
++
++        for (String url : new String[]{"https://vk.com/captcha", "https://api.vk.com/captcha", "https://id.vk.ru/captcha", "https://VK.COM/captcha"}) {
++            check(CaptchaHook.isTrustedUrl(url));
++        }
++        for (String url : new String[]{"http://vk.com/captcha", "https://vk.com.evil.test/captcha", "https://evilvk.com/", "https://evil.test/?vk.com", "https://evil.test@vk.com/", "https://vk.com:444/", "file:///vk.com", "javascript:alert(1)", "", null}) {
++            check(!CaptchaHook.isTrustedUrl(url));
++        }
++
++        String original = "https://oauth.vk.com/token?username=a%2Bb&password=p%26q%3D%D1%8F&scope=all&scope=offline#fragment";
++        ChainArgs chain = new ChainArgs();
++        check(original.equals(CaptchaHook.applyToUrl(original, chain)));
++        chain.b("sid");
++        chain.a("a+b&c");
++        Uri retry = Uri.parse(CaptchaHook.applyToUrl(original, chain));
++        check("a+b".equals(retry.getQueryParameter("username")));
++        check("p&q=я".equals(retry.getQueryParameter("password")));
++        check(retry.getQueryParameters("scope").size() == 2);
++        check("fragment".equals(retry.getFragment()));
++        check("sid".equals(retry.getQueryParameter("captcha_sid")));
++        check("a+b&c".equals(retry.getQueryParameter("captcha_key")));
++
++        // A successful UI result belongs only to its request chain.
++        solutions().put(chain, "web+token&value");
++        retry = Uri.parse(CaptchaHook.applyToUrl(original.replace("#fragment",
++                "&captcha_key=stale&captcha_sid=stale&success_token=stale#fragment"), chain));
++        check("web+token&value".equals(retry.getQueryParameter("success_token")));
++        check(retry.getQueryParameter("captcha_sid") == null);
++        check(retry.getQueryParameter("captcha_key") == null);
++        check(retry.getQueryParameters("success_token").size() == 1);
++        check(original.equals(CaptchaHook.applyToUrl(original, new ChainArgs())));
++
++        OkHttpMethodCall.a call = new OkHttpMethodCall.a();
++        call.a("username", "a+b");
++        call.a("captcha_sid", "stale");
++        call.a("captcha_key", "stale");
++        CaptchaHook.applyToCall(call, chain);
++        check("web+token&value".equals(call.a("success_token")));
++        check(call.a("captcha_sid") == null && call.a("captcha_key") == null);
++        check("a+b".equals(call.a("username")));
++
++        VKApiExecutionException imageError = new VKApiExecutionException(14, "test", false, "captcha", legacy, null, null);
++        check(!CaptchaHook.handle(imageError, chain));
++        CaptchaHook.applyToCall(call, chain);
++        check(call.a("success_token") == null);
++        check("sid".equals(call.a("captcha_sid")));
++        check("a+b&c".equals(call.a("captcha_key")));
++
++        // An untrusted challenge cancels; it never falls through to the image UI.
++        Bundle untrusted = new Bundle();
++        untrusted.putString("redirect_uri", "https://evil.test/captcha");
++        VKApiExecutionException invalid = new VKApiExecutionException(14, "test", false, "captcha", untrusted, null, null);
++        try {
++            CaptchaHook.handle(invalid, chain);
++            throw new AssertionError("Untrusted challenge accepted");
++        } catch (VKApiExecutionException error) {
++            check(error == invalid);
++        }
++
++        testSessionCompletion();
++        testHeaderChallenges();
++        System.out.println("Passed " + checks + " captcha regression checks");
++    }
++
++    private static Response response(int status, String challenge, String url) {
++        Request request = new Request.a().b("https://oauth.vk.com/token?username=test").a();
++        Response.a builder = new Response.a().a(request).a(Protocol.HTTP_1_1)
++                .a(status).a("test").a(ResponseBody.a(null, new byte[]{1, 2, 3}));
++        if (challenge != null) builder.a("X-Challenge", challenge);
++        if (url != null) builder.a("X-Challenge-Url", url);
++        return builder.a();
++    }
++
++    private static void testHeaderChallenges() throws Exception {
++        // Status alone is never a reason to open a challenge or retry a password.
++        try (Response response = response(429, null, null)) {
++            check(CaptchaHook.challengeRequest(response) == null);
++            check(response.a().g().length() == 3);
++        }
++        try (Response response = response(200, "optional", "https://vk.com/captcha")) {
++            check(CaptchaHook.challengeRequest(response) == null);
++        }
++        for (String redirect : new String[]{null, "https://evil.test/captcha", "http://vk.com/captcha"}) {
++            try (Response response = response(429, "required", redirect)) {
++                try {
++                    CaptchaHook.challengeRequest(response);
++                    throw new AssertionError("Invalid challenge URL accepted");
++                } catch (java.io.IOException expected) {
++                    check(true);
++                }
++            }
++        }
++    }
++
++    @SuppressWarnings("unchecked")
++    private static void testSessionCompletion() throws Exception {
++        Class<?> type = Class.forName("ru.vtosters.hooks.CaptchaHook$Session");
++        Constructor<?> constructor = type.getDeclaredConstructor(String.class);
++        constructor.setAccessible(true);
++        Object session = constructor.newInstance("https://vk.com/captcha");
++        Field sessionsField = CaptchaHook.class.getDeclaredField("SESSIONS");
++        sessionsField.setAccessible(true);
++        Map<String, Object> sessions = (Map<String, Object>) sessionsField.get(null);
++        sessions.put("test", session);
++        try {
++            check(CaptchaHook.isPending("test"));
++            check("https://vk.com/captcha".equals(CaptchaHook.redirect("test")));
++            CaptchaHook.complete("test", "first");
++            CaptchaHook.complete("test", null);
++            check(!CaptchaHook.isPending("test"));
++            Field token = type.getDeclaredField("token");
++            token.setAccessible(true);
++            check("first".equals(token.get(session)));
++        } finally {
++            sessions.remove("test");
++        }
++        check(!CaptchaHook.isPending("test"));
++        check(!CaptchaHook.isPending(null));
++        check(CaptchaHook.redirect(null) == null);
++        CaptchaHook.complete(null, "ignored");
++    }
++}
+diff --git a/tests/auth/README.md b/tests/auth/README.md
+new file mode 100644
+index 00000000..bbef04c2
+--- /dev/null
++++ b/tests/auth/README.md
+@@ -0,0 +1,16 @@
++# Captcha regression tests
++
++These tests exercise the real hook with Android's Java implementations of Uri,
++Bundle and JSONObject from Robolectric's `android-all` jar. They do not contact VK,
++solve a challenge, or test WebView rendering.
++
++Run from the repository root with a JDK and these external artifacts:
++
++```sh
++export ANDROID_JAR=/path/to/Android/Sdk/platforms/android-32/android.jar
++export ANDROID_ALL_JAR=/path/to/android-all-12.1-robolectric-8229987.jar
++bash scripts/test_auth.sh
++```
++
++`ECJ_JAR` can optionally select an Eclipse Java compiler jar when only a JRE is
++installed. All generated files go to a temporary directory.
+diff --git a/tests/auth/stubs/ru/vtosters/lite/utils/AndroidUtils.java b/tests/auth/stubs/ru/vtosters/lite/utils/AndroidUtils.java
+new file mode 100644
+index 00000000..4275222c
+--- /dev/null
++++ b/tests/auth/stubs/ru/vtosters/lite/utils/AndroidUtils.java
+@@ -0,0 +1,8 @@
++package ru.vtosters.lite.utils;
++
++/** The regression suite never opens an Activity or accesses a user account. */
++public final class AndroidUtils {
++    public static android.content.Context getGlobalContext() {
++        throw new AssertionError("Unexpected attempt to open a real captcha");
++    }
++}
