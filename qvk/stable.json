@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "package": "ru.qmods.qvk",
-  "version_code": 23766,
-  "version_name": "8.100-qvk-2.6.8",
+  "version_code": 23767,
+  "version_name": "8.100-qvk-2.6.9",
   "apk_size": 193618042,
-  "sha256": "31ed5e313ca19c96657998d48001d1b720fcff87a310f29d8da143b0b2033051",
-  "apk_url": "https://github.com/3Be3ga4Ka/vk-lite-updates/releases/download/qvk-public68/QVK_8.100_2.6.8.apk",
-  "text": "QVK 8.100 · 2.6.8\n\n• Telegram-стикеры доступны прямо в комментариях: откройте штатную панель стикеров → Telegram → выберите стикер. Он добавится в текущий черновик; отправка — обычной кнопкой VK. Открывать настройки и вводить ссылку не нужно.\n• При добавлении стикера сохраняются текст, другие вложения и выбранный ответ на комментарий. Штатный редактор VK управляет отправкой и её состоянием.\n• Если за время загрузки изменились запись, ответ, редактор или аккаунт, устаревшее вложение не добавляется в другой комментарий.\n• Быстрые ответы открываются возле текущего поля ввода и вставляются в него без отдельного экрана настроек.\n\nПроверено автоматическими тестами API28/35. На физическом Android и с живым аккаунтом VK эта сборка ещё не проверялась. Общий архив и массовое прочтение пока остаются в инструментах мода; все функции перенесёнными не объявляются.\n",
+  "sha256": "4aad9ba87e63d2c5852f65e1481eac410e788469765477c173ed6e4b93ed68b4",
+  "apk_url": "https://github.com/3Be3ga4Ka/vk-lite-updates/releases/download/qvk-public69/QVK_8.100_2.6.9.apk",
+  "text": "QVK 2.6.9 · VK 8.100\n\n• Цвет лайка, репоста и комментариев применяется непосредственно перед отрисовкой штатной кнопки. Устранено дополнительное окно, в котором VK мог вернуть серый цвет после проверки перед кадром.\n• Подсказки стикеров больше не скрываются нашим обработчиком из-за пустого поля, перехода фокуса в панель эмодзи или отсутствия системной клавиатуры.\n• Кнопка закрытия подсказок не перехватывает фокус поля сообщения.\n\nОткрытые проблемы: «Unsupported platform» в подарках, переход к последнему сообщению и зависание кнопок бота. В этой сборке их исправление не заявляется.\n\nПроверка: автоматические тесты и проверка APK. На физическом Android и в живом VK сборка не проверялась.\n",
   "distribution": {
     "schema": 1,
     "parts": [
@@ -14,145 +14,145 @@
         "name": "apk.part000",
         "bytes": 8388608,
         "sha256": "60e12fbdd5ca65fdb42b194a6d6c222de4043e572c4243ef3f490111055708a2",
-        "commit": "bc6248295057460fef2103e84a526b99cdcf7d1b"
+        "commit": "b0478c18c0358b64158a67a532943a8bc34b73b1"
       },
       {
         "name": "apk.part001",
         "bytes": 8388608,
-        "sha256": "47bfff252f0a40095c9bdc0f77a0f1f0ca88a9f3962f85a20c2cac538cbf8bbf",
-        "commit": "bcddb0370fc3169203238ab3294a93359b12ed60"
+        "sha256": "8c8ad191d74b17750df608b0badb6beb67eb33f73ec19616a8b0d0a4cb6d9b71",
+        "commit": "8c32455ac317d55e27927ecae8297e9401a8c7d5"
       },
       {
         "name": "apk.part002",
         "bytes": 8388608,
-        "sha256": "a2b8f0010a9b9e6da20050efce3359800707808bdbf03d99b31f882ae67ec892",
-        "commit": "57b12e18ad8cb25adca017c2117f71693495c766"
+        "sha256": "9760cdb0e64628161084bbdcedc2acade78f319ae9b4b7b07e861361b63c480a",
+        "commit": "cba3c9f71c3541f66dade7c9513bdb894fcbfe67"
       },
       {
         "name": "apk.part003",
         "bytes": 8388608,
-        "sha256": "ef41a2ab9ef916be996bf3c3db6113668ffd9632e73945f809a8c5e53479fb3a",
-        "commit": "8224e40236d90e3ffb44b604ee32b8412b0374fb"
+        "sha256": "19bd167da98fc0e339acf3dbf713aadcdd4acb14a5da5cdb266e1c579b328c19",
+        "commit": "999521e4835b389c891b7a2f21ce0eadca57268f"
       },
       {
         "name": "apk.part004",
         "bytes": 8388608,
-        "sha256": "ffa02e5e79a3ae0206984bb06893bf411862153ed09dfeb6eb3d160905312372",
-        "commit": "cab2df25b0aa6e83a0769a437e7825265884b513"
+        "sha256": "d939b7bea14fccac11b0c37d32c010836216f0762bd13d43d1eccdb1f7d4ae16",
+        "commit": "5ba58ac719a722dc0e9563734a0b2a2b607be8e2"
       },
       {
         "name": "apk.part005",
         "bytes": 8388608,
-        "sha256": "e106bb9105742013dd26861a87b7f2c3cca86c57e286ecfd9de1e7d475d54160",
-        "commit": "3b26995d69e6ab8269341ba741cbd8be524bb1c6"
+        "sha256": "f89457e8d3f9009b88258299e295c93190c38eadefcb0fd12f05e1c080f8ca32",
+        "commit": "aa493a3f54998aa16ddff8b54e4cbb93f69479a0"
       },
       {
         "name": "apk.part006",
         "bytes": 8388608,
-        "sha256": "96bf2ea464a00889e9cfa20927d17e7c1e1cd97f956085207ed44d3b8d1596e5",
-        "commit": "fb77cc3e524b787379a3dcb3a80e457cb398314a"
+        "sha256": "3cdef8890edf7b47c2fb880bf4e1c5af6f01074a18ed5d4efb87412ca20fb3f9",
+        "commit": "56fb144408872ae8c21d9c5edf7414d716fadc04"
       },
       {
         "name": "apk.part007",
         "bytes": 8388608,
-        "sha256": "1d60fd934d00b66dce707d4e239f74919a95b9d8c87b2f63d33f91275916c830",
-        "commit": "f47c98fd7f2fa2952408b55cfaa0622d4588e259"
+        "sha256": "b4db9e6b9bb95eac917749fa1bd326288a7adf9dc3aea3a0df03c756b1cb4fea",
+        "commit": "320a0346e77b1d2f7f7f73b034f896e79fd34c8e"
       },
       {
         "name": "apk.part008",
         "bytes": 8388608,
-        "sha256": "abc38177be5c0fcca79ccf7b0c2b3e8d6964be2898de31bd76f6b47ea7d02f01",
-        "commit": "1fc5e50e3bad2a89ec9e7091566c005fb1e13d56"
+        "sha256": "6f2c9651f811d1cb1aac087c12dfdd479c6b5dda0f538384b0c4e680061e81e6",
+        "commit": "f2206554a4dd4b592cc181dc9b7cc052571be671"
       },
       {
         "name": "apk.part009",
         "bytes": 8388608,
-        "sha256": "eb5d4d9b812c8b22eb2839fec0aeb0e9fb79d030a90ad0ee2faf5642ec324460",
-        "commit": "236e2796d65a7b26d0f889579dfac279be0c9550"
+        "sha256": "2b4000eef2c2ff66eeac67fcceaf2f4b5a5d1423a363b737f69092261fcd070f",
+        "commit": "51bd43fe5dbf10970821842579a69c89c7b60765"
       },
       {
         "name": "apk.part010",
         "bytes": 8388608,
-        "sha256": "69d9666598f6d4902e317f3060b57f7ec9da3cc45d74a2b5011560ab3a0b1200",
-        "commit": "3c50ca92a2ac339c5a5976f23bab92a03f9a7d14"
+        "sha256": "603767f2d4e8ad6a610259ef55f6a7700f8629ba6770ca9d967e5bf4a4dd2ec0",
+        "commit": "b0790b4f1fb8a36149f62ca4aab43500e9d925a5"
       },
       {
         "name": "apk.part011",
         "bytes": 8388608,
-        "sha256": "3ecef86f6bf330b6f88fc4eee08960023782e17fe32cf4bb18f38079a4591a90",
-        "commit": "9cea995a4e471b4d627ceed9a50b0f40c58cffae"
+        "sha256": "410ce3ded4ee96be7113e5d90d964bd90c7f55a8f6dea73654c1f0bc204458fa",
+        "commit": "09055d953731f899ca2fbd8e4429224e55a180b7"
       },
       {
         "name": "apk.part012",
         "bytes": 8388608,
-        "sha256": "98c6c904ed57f8152cbca30534c1615f91e1864382db5fe6ef65376cd8037a6b",
-        "commit": "94966374997e41b7292ce0c89422daf38aac9439"
+        "sha256": "066c6b84f2a8ac7cfd0dc8574ce9622c465b0d42f38f9b8c22424ec56a2efa45",
+        "commit": "4cd7df475fbba595dfc7b87a12000a99c2c2d3e1"
       },
       {
         "name": "apk.part013",
         "bytes": 8388608,
-        "sha256": "0b9235ea266f9a75e9bc629a76f17599f19f6dc20f46cf38beee310249889e76",
-        "commit": "10db24269d66b48c624da65414042b53d435fc83"
+        "sha256": "42b2b859ebc1e9eb84e8eb3752e8e4c552ad7596ae994be6078ccb6ca3c66034",
+        "commit": "32cd0206b4ce91ea63ba63983aab1ee03f14f277"
       },
       {
         "name": "apk.part014",
         "bytes": 8388608,
-        "sha256": "955a7f5d9a834047074522165ea450c644b3c76f478c40bdbd60200e9174faee",
-        "commit": "f95bd2af958475eb4850f0d23fa51dc07cbedb4b"
+        "sha256": "b4353f265015e76f4e9720ecb6f110c24a43d18f03c6223c5306743150ddca72",
+        "commit": "72ae5e410dbdeeaffc9ca6278739925e65d150b4"
       },
       {
         "name": "apk.part015",
         "bytes": 8388608,
-        "sha256": "f9f5ed7ed51fe87949ac2eb65ef1d0eddac54503641a0a0c6e4482b0f91a41f4",
-        "commit": "415ee24768d7167a391610355037ab392d89a3f4"
+        "sha256": "807cc3dbd28d00a9532d7dbc36c76cb6bc4846e0476577853ae720512aae9b51",
+        "commit": "8370c9222ad2086899bd2176936aef18ab94357c"
       },
       {
         "name": "apk.part016",
         "bytes": 8388608,
-        "sha256": "57cbdc6ebb771a797e5ff34fa3247c6919f6548d695b898f844694e4a7487ca7",
-        "commit": "b12499150893df7580f3a9c1e4dfa4388bb00bc0"
+        "sha256": "125a2f56271c0dc94c4defc1ed6bd355a3343ec824ef82ccdc65f2f8502b0345",
+        "commit": "4be0a9d9e82181875c825567e9ffc61d9fd7a4a9"
       },
       {
         "name": "apk.part017",
         "bytes": 8388608,
-        "sha256": "7618f9b35396554baa9322e0564231701e986f2be344b4a1437275a61c1e48f2",
-        "commit": "9ac9167b5d28c45c73a019912890a22defbbd84a"
+        "sha256": "b4c234b705de81a4f8bebf5c37d6b12da88ab7e8fbce7a741420d387d8468c7a",
+        "commit": "1e558cc83e13e205c5a409056efe04164540108b"
       },
       {
         "name": "apk.part018",
         "bytes": 8388608,
-        "sha256": "847e6ee7a459efabf3afdd106dfacaa29ea7597ab0ee9a6ee6847ae253e90138",
-        "commit": "b3a22868de33ce2f366d2dd584766080c3a4569a"
+        "sha256": "7035cd4c8efb80cbe25bfe6e15d81709363c713a670903955a9b919f121921f0",
+        "commit": "e080e828ebcd836296220f8492b986fbdeed5f7f"
       },
       {
         "name": "apk.part019",
         "bytes": 8388608,
-        "sha256": "fc2496ffda1401005fe5757b1f272c19e6309a091aa3cb401740b5e3c3649e58",
-        "commit": "1936941e01430c77dd4b2a89555f213c1ec9865b"
+        "sha256": "f80c91d8bc18edcdb8d470fadce66c133b45c1513c9d9e412afdc80b95628388",
+        "commit": "6a51e941b7ab464294be5315358890f7863d0c99"
       },
       {
         "name": "apk.part020",
         "bytes": 8388608,
-        "sha256": "d598973d126dba0c07420715fb4157f5e7b0221947ff3e5a1aeed2a29ab4e1e7",
-        "commit": "ac85651aef10e165fa5f6bbd716199ec1ec8a57f"
+        "sha256": "97a50b609e020ba52b44e299609c2a0f31c0e118e31a0d490621a98820cbff20",
+        "commit": "3cd6cfda5c58f3a65ff6ff3c196b9b740f528752"
       },
       {
         "name": "apk.part021",
         "bytes": 8388608,
-        "sha256": "a70a6d2dd334d89fb5289f16a0150305da6226afb77a4f9ad2a6a4bb3a6ccd02",
-        "commit": "4406f21c2dda48907a0c82ed57ae00c0a68953eb"
+        "sha256": "4a2274cc683d68bd2dee9cd6baad51b8cf7eed4fce542e4577341b207cfb6af9",
+        "commit": "f3838692815fd286ce107ad58f019a3fa66949bb"
       },
       {
         "name": "apk.part022",
         "bytes": 8388608,
-        "sha256": "8460929de817a184bf7790a68556581571b85f79b294bda3f4fdc031129f54e5",
-        "commit": "6c1de5ce39e981652f5c047e4d532758d79620d3"
+        "sha256": "b752af28342b3d47f0e6cab4a6dca43fb0e396f0ec537d0ede390e2041d9d2dd",
+        "commit": "e517cf5ff376c54262f346c8680b982f2938a0f6"
       },
       {
         "name": "apk.part023",
         "bytes": 680058,
-        "sha256": "a708f970a6ed91e3d36436cad8e57e286bb6d0f9d7461c96940101115eca2ced",
-        "commit": "ae5c7d68113a7aaa7e9d1dc8ae78c1d5bf9440c1"
+        "sha256": "4144ad10f844664ed5a3fa9ac9ba1786ddfe2fa986313aebb0e7e8da09761ee0",
+        "commit": "c4253f1d60076f76503b03f0aa6b6e03460e1d8d"
       }
     ]
   }
